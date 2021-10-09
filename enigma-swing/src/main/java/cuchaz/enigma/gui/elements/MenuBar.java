@@ -1,11 +1,13 @@
 package cuchaz.enigma.gui.elements;
 
+import java.awt.FileDialog;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
@@ -29,6 +31,8 @@ import cuchaz.enigma.utils.I18n;
 import cuchaz.enigma.utils.Pair;
 
 public class MenuBar {
+
+	private final JMenuBar ui = new JMenuBar();
 
 	private final JMenu fileMenu = new JMenu();
 	private final JMenuItem jarOpenItem = new JMenuItem();
@@ -55,9 +59,9 @@ public class MenuBar {
 	private final JMenuItem customScaleItem = new JMenuItem();
 
 	private final JMenu searchMenu = new JMenu();
-	private final JMenuItem searchClassItem = new JMenuItem(GuiUtil.CLASS_ICON);
-	private final JMenuItem searchMethodItem = new JMenuItem(GuiUtil.METHOD_ICON);
-	private final JMenuItem searchFieldItem = new JMenuItem(GuiUtil.FIELD_ICON);
+	private final JMenuItem searchClassItem = new JMenuItem();
+	private final JMenuItem searchMethodItem = new JMenuItem();
+	private final JMenuItem searchFieldItem = new JMenuItem();
 
 	private final JMenu collabMenu = new JMenu();
 	private final JMenuItem connectItem = new JMenuItem();
@@ -71,8 +75,6 @@ public class MenuBar {
 
 	public MenuBar(Gui gui) {
 		this.gui = gui;
-
-		JMenuBar ui = gui.getMainWindow().menuBar();
 
 		this.retranslateUi();
 
@@ -101,29 +103,29 @@ public class MenuBar {
 		this.fileMenu.add(this.statsItem);
 		this.fileMenu.addSeparator();
 		this.fileMenu.add(this.exitItem);
-		ui.add(this.fileMenu);
+		this.ui.add(this.fileMenu);
 
-		ui.add(this.decompilerMenu);
+		this.ui.add(this.decompilerMenu);
 
 		this.viewMenu.add(this.themesMenu);
 		this.viewMenu.add(this.languagesMenu);
 		this.scaleMenu.add(this.customScaleItem);
 		this.viewMenu.add(this.scaleMenu);
 		this.viewMenu.add(this.fontItem);
-		ui.add(this.viewMenu);
+		this.ui.add(this.viewMenu);
 
 		this.searchMenu.add(this.searchClassItem);
 		this.searchMenu.add(this.searchMethodItem);
 		this.searchMenu.add(this.searchFieldItem);
-		ui.add(this.searchMenu);
+		this.ui.add(this.searchMenu);
 
 		this.collabMenu.add(this.connectItem);
 		this.collabMenu.add(this.startServerItem);
-		ui.add(this.collabMenu);
+		this.ui.add(this.collabMenu);
 
 		this.helpMenu.add(this.aboutItem);
 		this.helpMenu.add(this.githubItem);
-		ui.add(this.helpMenu);
+		this.ui.add(this.helpMenu);
 
 		this.saveMappingsItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK));
 		this.searchClassItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, InputEvent.SHIFT_DOWN_MASK));
@@ -210,25 +212,23 @@ public class MenuBar {
 		this.githubItem.setText(I18n.translate("menu.help.github"));
 	}
 
+	public JMenuBar getUi() {
+		return this.ui;
+	}
+
 	private void onOpenJarClicked() {
-		JFileChooser d = this.gui.jarFileChooser;
-		d.setCurrentDirectory(new File(UiConfig.getLastSelectedDir()));
+		FileDialog d = this.gui.jarFileChooser;
+		d.setDirectory(UiConfig.getLastSelectedDir());
 		d.setVisible(true);
-		int result = d.showOpenDialog(gui.getFrame());
-
-		if (result != JFileChooser.APPROVE_OPTION) {
-			return;
-		}
-
-		File file = d.getSelectedFile();
+		String file = d.getFile();
 		// checks if the file name is not empty
 		if (file != null) {
-			Path path = file.toPath();
+			Path path = Paths.get(d.getDirectory()).resolve(file);
 			// checks if the file name corresponds to an existing file
 			if (Files.exists(path)) {
 				this.gui.getController().openJar(path);
 			}
-			UiConfig.setLastSelectedDir(d.getCurrentDirectory().getAbsolutePath());
+			UiConfig.setLastSelectedDir(d.getDirectory());
 		}
 	}
 
@@ -240,7 +240,8 @@ public class MenuBar {
 		if (this.gui.getController().isDirty()) {
 			this.gui.showDiscardDiag((response -> {
 				if (response == JOptionPane.YES_OPTION) {
-					this.gui.saveMapping().thenRun(then);
+					this.gui.saveMapping();
+					then.run();
 				} else if (response == JOptionPane.NO_OPTION)
 					then.run();
 				return null;
@@ -271,18 +272,12 @@ public class MenuBar {
 	}
 
 	private void onExportJarClicked() {
-		this.gui.exportJarFileChooser.setCurrentDirectory(new File(UiConfig.getLastSelectedDir()));
+		this.gui.exportJarFileChooser.setDirectory(UiConfig.getLastSelectedDir());
 		this.gui.exportJarFileChooser.setVisible(true);
-		int result = this.gui.exportJarFileChooser.showSaveDialog(gui.getFrame());
-
-		if (result != JFileChooser.APPROVE_OPTION) {
-			return;
-		}
-
-		if (this.gui.exportJarFileChooser.getSelectedFile() != null) {
-			Path path = this.gui.exportJarFileChooser.getSelectedFile().toPath();
+		if (this.gui.exportJarFileChooser.getFile() != null) {
+			Path path = Paths.get(this.gui.exportJarFileChooser.getDirectory(), this.gui.exportJarFileChooser.getFile());
 			this.gui.getController().exportJar(path);
-			UiConfig.setLastSelectedDir(this.gui.exportJarFileChooser.getCurrentDirectory().getAbsolutePath());
+			UiConfig.setLastSelectedDir(this.gui.exportJarFileChooser.getDirectory());
 		}
 	}
 

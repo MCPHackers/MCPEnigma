@@ -1,6 +1,7 @@
 package cuchaz.enigma.gui.dialog;
 
 import java.awt.*;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.swing.JButton;
@@ -17,14 +18,14 @@ import cuchaz.enigma.utils.I18n;
 
 public class FontDialog extends JDialog {
 
-	private static final List<String> CATEGORIES = List.of(
+	private static final List<String> CATEGORIES = Arrays.asList(
 			"Default",
 			"Default 2",
 			"Small",
 			"Editor"
 	);
 
-	private static final List<String> CATEGORY_TEXTS = List.of(
+	private static final List<String> CATEGORY_TEXTS = Arrays.asList(
 			"fonts.cat.default",
 			"fonts.cat.default2",
 			"fonts.cat.small",

@@ -65,7 +65,8 @@ public class ObfuscationFixClassProvider implements ClassProvider {
         for (MethodNode methodNode : node.methods) {
             AbstractInsnNode insnNode = methodNode.instructions.getFirst();
             while (insnNode != null) {
-                if (insnNode instanceof MethodInsnNode methodInsnNode && insnNode.getOpcode() == Opcodes.INVOKEVIRTUAL) {
+                if (insnNode instanceof MethodInsnNode && insnNode.getOpcode() == Opcodes.INVOKEVIRTUAL) {
+                    MethodInsnNode methodInsnNode = (MethodInsnNode) insnNode;
                     if (methodInsnNode.name.equals("getClass") && methodInsnNode.owner.equals("java/lang/Object") && methodInsnNode.desc.equals("()Ljava/lang/Class;")) {
                         AbstractInsnNode previous = methodInsnNode.getPrevious();
                         AbstractInsnNode next = methodInsnNode.getNext();

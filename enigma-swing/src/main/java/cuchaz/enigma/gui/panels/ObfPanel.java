@@ -33,7 +33,7 @@ public class ObfPanel extends JPanel {
 
 		this.obfClasses = new ClassSelector(gui, obfClassComparator, false);
 		this.obfClasses.setSelectionListener(gui.getController()::navigateTo);
-		this.obfClasses.setRenameSelectionListener(gui::onRenameFromClassTree);
+		this.obfClasses.setRenameSelectionListener(gui::onPanelRename);
 
 		this.setLayout(new BorderLayout());
 		this.add(this.title, BorderLayout.NORTH);

@@ -13,7 +13,6 @@ package cuchaz.enigma.translation.representation.entry;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 import javax.annotation.Nullable;
 
@@ -108,29 +107,16 @@ public interface Entry<P extends Entry<?>> extends Translatable {
 
 	boolean canConflictWith(Entry<?> entry);
 
+	@Nullable
 	default ClassEntry getContainingClass() {
-		ClassEntry last = null;
-		Entry<?> current = this;
-		while (current != null) {
-			if (current instanceof ClassEntry) {
-				last = (ClassEntry) current;
-				break;
-			}
-			current = current.getParent();
+		P parent = getParent();
+		if (parent == null) {
+			return null;
 		}
-		return Objects.requireNonNull(last, () -> String.format("%s has no containing class?", this));
-	}
-
-	default ClassEntry getTopLevelClass() {
-		ClassEntry last = null;
-		Entry<?> current = this;
-		while (current != null) {
-			if (current instanceof ClassEntry) {
-				last = (ClassEntry) current;
-			}
-			current = current.getParent();
+		if (parent instanceof ClassEntry) {
+			return (ClassEntry) parent;
 		}
-		return Objects.requireNonNull(last, () -> String.format("%s has no top level class?", this));
+		return parent.getContainingClass();
 	}
 
 	default List<Entry<?>> getAncestry() {

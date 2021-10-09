@@ -12,16 +12,17 @@ import cuchaz.enigma.translation.representation.entry.Entry;
 import cuchaz.enigma.translation.representation.entry.FieldEntry;
 import cuchaz.enigma.translation.representation.entry.LocalVariableEntry;
 import cuchaz.enigma.translation.representation.entry.MethodEntry;
-import org.benf.cfr.reader.bytecode.analysis.loc.HasByteCodeLoc;
+import org.benf.cfr.reader.bytecode.analysis.types.JavaArrayTypeInstance;
+import org.benf.cfr.reader.bytecode.analysis.types.JavaGenericBaseInstance;
 import org.benf.cfr.reader.bytecode.analysis.types.JavaRefTypeInstance;
 import org.benf.cfr.reader.bytecode.analysis.types.JavaTypeInstance;
 import org.benf.cfr.reader.bytecode.analysis.types.MethodPrototype;
+import org.benf.cfr.reader.bytecode.analysis.types.RawJavaType;
 import org.benf.cfr.reader.bytecode.analysis.variables.NamedVariable;
 import org.benf.cfr.reader.entities.AccessFlag;
 import org.benf.cfr.reader.entities.ClassFile;
 import org.benf.cfr.reader.entities.ClassFileField;
 import org.benf.cfr.reader.entities.Field;
-import org.benf.cfr.reader.entities.Method;
 import org.benf.cfr.reader.state.TypeUsageInformation;
 import org.benf.cfr.reader.util.getopt.Options;
 import org.benf.cfr.reader.util.output.Dumper;
@@ -48,7 +49,6 @@ public class EnigmaDumper extends StringStreamDumper {
     private final TypeUsageInformation typeUsage;
     private final MovableDumperContext dumperContext;
     private boolean muteLine = false;
-    private MethodEntry contextMethod = null;
 
     public EnigmaDumper(StringBuilder sb, SourceSettings sourceSettings, TypeUsageInformation typeUsage, Options options,
             @Nullable EntryRemapper mapper) {
@@ -68,19 +68,18 @@ public class EnigmaDumper extends StringStreamDumper {
     }
 
     private MethodEntry getMethodEntry(MethodPrototype method) {
-        if (method == null || method.getOwner() == null) {
+        if (method == null || method.getClassType() == null) {
             return null;
         }
 
         MethodDescriptor desc = new MethodDescriptor(method.getOriginalDescriptor());
 
-        return new MethodEntry(getClassEntry(method.getOwner()), method.getName(), desc);
+        return new MethodEntry(getClassEntry(method.getClassType()), method.getName(), desc);
     }
 
     private LocalVariableEntry getParameterEntry(MethodPrototype method, int parameterIndex, String name) {
         MethodEntry owner = getMethodEntry(method);
-        // params may be not computed if cfr creates a lambda expression fallback, e.g. in PointOfInterestSet
-        if (owner == null || !method.parametersComputed()) {
+        if (owner == null) {
             return null;
         }
 
@@ -148,9 +147,9 @@ public class EnigmaDumper extends StringStreamDumper {
                         continue;
                     }
 
-                    String javaDoc = mapping.javadoc();
+                    String javaDoc = mapping.getJavadoc();
                     if (javaDoc != null) {
-                        recordComponentDocs.add(String.format("@param %s %s", mapping.targetName(), javaDoc));
+                        recordComponentDocs.add(String.format("@param %s %s", field.getFieldName(), javaDoc));
                     }
                 }
             }
@@ -159,7 +158,7 @@ public class EnigmaDumper extends StringStreamDumper {
 
             String javadoc = null;
             if (mapping != null) {
-                javadoc = mapping.javadoc();
+                javadoc = mapping.getJavadoc();
             }
 
             if (javadoc != null || !recordComponentDocs.isEmpty()) {
@@ -191,7 +190,7 @@ public class EnigmaDumper extends StringStreamDumper {
             MethodEntry methodEntry = getMethodEntry(method);
             EntryMapping mapping = mapper.getDeobfMapping(methodEntry);
             if (mapping != null) {
-                String javadoc = mapping.javadoc();
+                String javadoc = mapping.getJavadoc();
                 if (javadoc != null) {
                     lines.addAll(Arrays.asList(javadoc.split("\\R")));
                 }
@@ -204,9 +203,9 @@ public class EnigmaDumper extends StringStreamDumper {
                     if (each instanceof LocalVariableEntry) {
                         EntryMapping paramMapping = mapper.getDeobfMapping(each);
                         if (paramMapping != null) {
-                            String javadoc = paramMapping.javadoc();
+                            String javadoc = paramMapping.getJavadoc();
                             if (javadoc != null) {
-                                lines.addAll(Arrays.asList(("@param " + paramMapping.targetName() + " " + javadoc).split("\\R")));
+                                lines.addAll(Arrays.asList(("@param " + paramMapping.getTargetName() + " " + javadoc).split("\\R")));
                             }
                         }
                     }
@@ -230,7 +229,7 @@ public class EnigmaDumper extends StringStreamDumper {
         if (mapper != null && !recordComponent) {
             EntryMapping mapping = mapper.getDeobfMapping(getFieldEntry(owner, field.getFieldName(), field.getDescriptor()));
             if (mapping != null) {
-                String javadoc = mapping.javadoc();
+                String javadoc = mapping.getJavadoc();
                 if (javadoc != null) {
                     print("/**").newln();
                     for (String line : javadoc.split("\\R")) {
@@ -254,7 +253,7 @@ public class EnigmaDumper extends StringStreamDumper {
             if (defines) {
                 index.addDeclaration(token, entry); // override as cfr reuses local vars
             } else {
-                index.addReference(token, entry, contextMethod);
+                index.addReference(token, entry, null);
             }
         }
 
@@ -277,7 +276,7 @@ public class EnigmaDumper extends StringStreamDumper {
             if (defines) {
                 this.index.addDeclaration(token, entry);
             } else {
-                this.index.addReference(token, entry, contextMethod);
+                this.index.addReference(token, entry, null);
             }
         }
 
@@ -294,31 +293,27 @@ public class EnigmaDumper extends StringStreamDumper {
     public Dumper identifier(String name, Object ref, boolean defines) {
         super.identifier(name, ref, defines);
         Entry<?> entry;
-        if (defines) {
-            refs.remove(ref);
-            return this;
-        }
         if ((entry = refs.get(ref)) == null) {
             return this;
         }
         int now = sb.length();
         Token token = new Token(now - name.length(), now, name);
-        index.addReference(token, entry, contextMethod);
+        index.addReference(token, entry, null);
         return this;
     }
 
     @Override
-    public Dumper fieldName(String name, String descriptor, JavaTypeInstance owner, boolean hiddenDeclaration, boolean isStatic, boolean defines) {
-        super.fieldName(name, descriptor, owner, hiddenDeclaration, isStatic, defines);
+    public Dumper fieldName(String name, Field field, JavaTypeInstance owner, boolean hiddenDeclaration, boolean defines) {
+        super.fieldName(name, field, owner, hiddenDeclaration, defines);
         int now = sb.length();
         Token token = new Token(now - name.length(), now, name);
-        if (descriptor != null) {
-            Entry<?> entry = getFieldEntry(owner, name, descriptor);
+        Entry<?> entry = field == null ? null : getFieldEntry(owner, name, field.getDescriptor());
 
+        if (entry != null) {
             if (defines) {
                 index.addDeclaration(token, entry);
             } else {
-                index.addReference(token, entry, contextMethod);
+                index.addReference(token, entry, null);
             }
         }
 
@@ -353,7 +348,7 @@ public class EnigmaDumper extends StringStreamDumper {
             if (defines) {
                 index.addDeclaration(token, getClassEntry(type));
             } else {
-                index.addReference(token, getClassEntry(type), contextMethod);
+                index.addReference(token, getClassEntry(type), null);
             }
             return;
         }
@@ -370,14 +365,6 @@ public class EnigmaDumper extends StringStreamDumper {
     @Override
     public Dumper withTypeUsageInformation(TypeUsageInformation innerclassTypeUsageInformation) {
         return new EnigmaDumper(this.sb, sourceSettings, innerclassTypeUsageInformation, options, mapper, index, dumperContext);
-    }
-
-    @Override
-    public void informBytecodeLoc(HasByteCodeLoc loc) {
-        Collection<Method> methods = loc.getLoc().getMethods();
-        if (!methods.isEmpty()) {
-            this.contextMethod = getMethodEntry(methods.iterator().next().getMethodPrototype());
-        }
     }
 
     public SourceIndex getIndex() {

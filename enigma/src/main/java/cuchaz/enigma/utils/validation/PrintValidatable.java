@@ -1,6 +1,5 @@
 package cuchaz.enigma.utils.validation;
 
-import java.io.PrintStream;
 import java.util.Arrays;
 
 public class PrintValidatable implements Validatable {
@@ -9,21 +8,25 @@ public class PrintValidatable implements Validatable {
 
 	@Override
 	public void addMessage(ParameterizedMessage message) {
-		formatMessage(System.out, message);
-	}
-
-	public static void formatMessage(PrintStream w, ParameterizedMessage message) {
 		String text = message.getText();
 		String longText = message.getLongText();
-		String type = switch (message.message.type) {
-			case INFO -> "info";
-			case WARNING -> "warning";
-			case ERROR -> "error";
-		};
-		w.printf("%s: %s\n", type, text);
-
+		String type;
+		switch (message.message.type) {
+			case INFO:
+				type = "info";
+				break;
+			case WARNING:
+				type = "warning";
+				break;
+			case ERROR:
+				type = "error";
+				break;
+			default:
+				throw new IllegalStateException("unreachable");
+		}
+		System.out.printf("%s: %s\n", type, text);
 		if (!longText.isEmpty()) {
-			Arrays.stream(longText.split("\n")).forEach(s -> w.printf("  %s\n", s));
+			Arrays.stream(longText.split("\n")).forEach(s -> System.out.printf("  %s\n", s));
 		}
 	}
 

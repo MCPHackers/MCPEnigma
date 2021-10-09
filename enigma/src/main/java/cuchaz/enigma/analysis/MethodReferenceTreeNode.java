@@ -72,7 +72,8 @@ public class MethodReferenceTreeNode extends DefaultMutableTreeNode implements R
 
 		if (recurse && this.children != null) {
 			for (Object child : this.children) {
-				if (child instanceof MethodReferenceTreeNode node) {
+				if (child instanceof MethodReferenceTreeNode) {
+					MethodReferenceTreeNode node = (MethodReferenceTreeNode) child;
 
 					// don't recurse into ancestor
 					Set<Entry<?>> ancestors = Sets.newHashSet();

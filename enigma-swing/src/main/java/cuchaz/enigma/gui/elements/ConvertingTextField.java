@@ -25,8 +25,7 @@ public class ConvertingTextField implements Validatable {
 	private final JPanel ui;
 	private final ValidatableTextField textField;
 	private final JLabel label;
-	private boolean editing = false;
-	private boolean editable = true;
+	private boolean isEditing = false;
 
 	private final Set<ConvertingTextFieldListener> listeners = new HashSet<>();
 
@@ -69,11 +68,10 @@ public class ConvertingTextField implements Validatable {
 	}
 
 	public void startEditing() {
-		if (this.editing || !this.editable) return;
-
+		if (isEditing) return;
 		this.ui.removeAll();
 		this.ui.add(this.textField);
-		this.editing = true;
+		this.isEditing = true;
 		this.ui.validate();
 		this.ui.repaint();
 		this.textField.requestFocusInWindow();
@@ -82,7 +80,7 @@ public class ConvertingTextField implements Validatable {
 	}
 
 	public void stopEditing(boolean abort) {
-		if (!editing) return;
+		if (!isEditing) return;
 
 		if (!listeners.stream().allMatch(l -> l.tryStopEditing(this, abort))) return;
 
@@ -94,7 +92,7 @@ public class ConvertingTextField implements Validatable {
 
 		this.ui.removeAll();
 		this.ui.add(this.label);
-		this.editing = false;
+		this.isEditing = false;
 		this.ui.validate();
 		this.ui.repaint();
 		this.listeners.forEach(l -> l.onStopEditing(this, abort));
@@ -107,28 +105,19 @@ public class ConvertingTextField implements Validatable {
 	}
 
 	public void setEditText(String text) {
-		if (!editing) return;
+		if (!isEditing) return;
 
 		this.textField.setText(text);
 	}
 
-	public void setEditable(boolean editable) {
-		if (!editable) {
-			this.stopEditing(true);
-		}
-
-		this.label.setEnabled(editable);
-		this.editable = editable;
-	}
-
 	public void selectAll() {
-		if (!editing) return;
+		if (!isEditing) return;
 
 		this.textField.selectAll();
 	}
 
 	public void selectSubstring(int startIndex) {
-		if (!editing) return;
+		if (!isEditing) return;
 
 		Document doc = this.textField.getDocument();
 		if (doc != null) {
@@ -137,13 +126,13 @@ public class ConvertingTextField implements Validatable {
 	}
 
 	public void selectSubstring(int startIndex, int endIndex) {
-		if (!editing) return;
+		if (!isEditing) return;
 
 		this.textField.select(startIndex, endIndex);
 	}
 
 	public String getText() {
-		if (editing) {
+		if (isEditing) {
 			return this.textField.getText();
 		} else {
 			return this.label.getText();
@@ -155,7 +144,7 @@ public class ConvertingTextField implements Validatable {
 	}
 
 	public boolean hasChanges() {
-		if (!editing) return false;
+		if (!isEditing) return false;
 		return !this.textField.getText().equals(this.label.getText());
 	}
 

@@ -13,7 +13,6 @@ package cuchaz.enigma.translation.representation.entry;
 
 import java.util.Arrays;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
@@ -75,20 +74,16 @@ public class ClassDefEntry extends ClassEntry implements DefEntry<ClassEntry> {
 		return interfaces;
 	}
 
-	public boolean isRecord() {
-		return superClass.getName().equals("java/lang/Record");
-	}
-
 	@Override
-	public TranslateResult<ClassDefEntry> extendedTranslate(Translator translator, @Nonnull EntryMapping mapping) {
+	public TranslateResult<ClassDefEntry> extendedTranslate(Translator translator, @Nullable EntryMapping mapping) {
 		Signature translatedSignature = translator.translate(signature);
-		String translatedName = mapping.targetName() != null ? mapping.targetName() : name;
-		AccessFlags translatedAccess = mapping.accessModifier().transform(access);
+		String translatedName = mapping != null ? mapping.getTargetName() : name;
+		AccessFlags translatedAccess = mapping != null ? mapping.getAccessModifier().transform(access) : access;
 		ClassEntry translatedSuper = translator.translate(superClass);
 		ClassEntry[] translatedInterfaces = Arrays.stream(interfaces).map(translator::translate).toArray(ClassEntry[]::new);
-		String docs = mapping.javadoc();
+		String docs = mapping != null ? mapping.getJavadoc() : null;
 		return TranslateResult.of(
-				mapping.targetName() == null ? RenamableTokenType.OBFUSCATED : RenamableTokenType.DEOBFUSCATED,
+				mapping == null ? RenamableTokenType.OBFUSCATED : RenamableTokenType.DEOBFUSCATED,
 				new ClassDefEntry(parent, translatedName, translatedSignature, translatedAccess, translatedSuper, translatedInterfaces, docs)
 		);
 	}

@@ -82,16 +82,16 @@ public class ClassEntry extends ParentedEntry<ClassEntry> implements Comparable<
 	}
 
 	@Override
-	public TranslateResult<? extends ClassEntry> extendedTranslate(Translator translator, @Nonnull EntryMapping mapping) {
+	public TranslateResult<? extends ClassEntry> extendedTranslate(Translator translator, @Nullable EntryMapping mapping) {
 		if (name.charAt(0) == '[') {
 			TranslateResult<TypeDescriptor> translatedName = translator.extendedTranslate(new TypeDescriptor(name));
 			return translatedName.map(desc -> new ClassEntry(parent, desc.toString()));
 		}
 
-		String translatedName = mapping.targetName() != null ? mapping.targetName() : name;
-		String docs = mapping.javadoc();
+		String translatedName = mapping != null ? mapping.getTargetName() : name;
+		String docs = mapping != null ? mapping.getJavadoc() : null;
 		return TranslateResult.of(
-				mapping.targetName() == null ? RenamableTokenType.OBFUSCATED : RenamableTokenType.DEOBFUSCATED,
+				mapping == null ? RenamableTokenType.OBFUSCATED : RenamableTokenType.DEOBFUSCATED,
 				new ClassEntry(parent, translatedName, docs)
 		);
 	}

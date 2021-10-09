@@ -11,6 +11,8 @@
 
 package cuchaz.enigma.translation.representation.entry;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Preconditions;
 
 import cuchaz.enigma.source.RenamableTokenType;
@@ -20,8 +22,6 @@ import cuchaz.enigma.translation.mapping.EntryMapping;
 import cuchaz.enigma.translation.representation.AccessFlags;
 import cuchaz.enigma.translation.representation.Signature;
 import cuchaz.enigma.translation.representation.TypeDescriptor;
-
-import javax.annotation.Nonnull;
 
 public class FieldDefEntry extends FieldEntry implements DefEntry<ClassEntry> {
 	private final AccessFlags access;
@@ -53,14 +53,14 @@ public class FieldDefEntry extends FieldEntry implements DefEntry<ClassEntry> {
 	}
 
 	@Override
-	protected TranslateResult<FieldEntry> extendedTranslate(Translator translator, @Nonnull EntryMapping mapping) {
+	protected TranslateResult<FieldEntry> extendedTranslate(Translator translator, @Nullable EntryMapping mapping) {
 		TypeDescriptor translatedDesc = translator.translate(desc);
 		Signature translatedSignature = translator.translate(signature);
-		String translatedName = mapping.targetName() != null ? mapping.targetName() : name;
-		AccessFlags translatedAccess = mapping.accessModifier().transform(access);
-		String docs = mapping.javadoc();
+		String translatedName = mapping != null ? mapping.getTargetName() : name;
+		AccessFlags translatedAccess = mapping != null ? mapping.getAccessModifier().transform(access) : access;
+		String docs = mapping != null ? mapping.getJavadoc() : null;
 		return TranslateResult.of(
-				mapping.targetName() == null ? RenamableTokenType.OBFUSCATED : RenamableTokenType.DEOBFUSCATED,
+				mapping == null ? RenamableTokenType.OBFUSCATED : RenamableTokenType.DEOBFUSCATED,
 				new FieldDefEntry(parent, translatedName, translatedDesc, translatedSignature, translatedAccess, docs)
 		);
 	}

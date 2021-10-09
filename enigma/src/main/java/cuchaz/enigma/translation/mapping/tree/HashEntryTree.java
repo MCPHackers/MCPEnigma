@@ -6,7 +6,6 @@ import cuchaz.enigma.translation.mapping.EntryMapping;
 import cuchaz.enigma.translation.mapping.EntryResolver;
 import cuchaz.enigma.translation.representation.entry.Entry;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.Function;
@@ -153,7 +152,6 @@ public class HashEntryTree<T> implements EntryTree<T> {
 	}
 
 	@Override
-	@Nonnull
 	public Iterator<EntryTreeNode<T>> iterator() {
 		Collection<EntryTreeNode<T>> nodes = new ArrayList<>();
 		for (EntryTreeNode<T> node : root.values()) {

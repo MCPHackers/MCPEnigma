@@ -8,7 +8,6 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import cuchaz.enigma.network.packet.*;
-import cuchaz.enigma.translation.mapping.EntryChange;
 import cuchaz.enigma.translation.mapping.EntryMapping;
 import cuchaz.enigma.translation.mapping.EntryRemapper;
 import cuchaz.enigma.translation.representation.entry.Entry;
@@ -17,7 +16,7 @@ public abstract class EnigmaServer {
 
 	// https://discordapp.com/channels/507304429255393322/566418023372816394/700292322918793347
 	public static final int DEFAULT_PORT = 34712;
-	public static final int PROTOCOL_VERSION = 1;
+	public static final int PROTOCOL_VERSION = 0;
 	public static final int CHECKSUM_SIZE = 20;
 	public static final int MAX_PASSWORD_LENGTH = 255; // length is written as a byte in the login packet
 
@@ -235,11 +234,11 @@ public abstract class EnigmaServer {
 
 	public void sendCorrectMapping(Socket client, Entry<?> entry, boolean refreshClassTree) {
 		EntryMapping oldMapping = mappings.getDeobfMapping(entry);
-		String oldName = oldMapping.targetName();
+		String oldName = oldMapping == null ? null : oldMapping.getTargetName();
 		if (oldName == null) {
-			sendPacket(client, new EntryChangeS2CPacket(DUMMY_SYNC_ID, EntryChange.modify(entry).clearDeobfName()));
+			sendPacket(client, new RemoveMappingS2CPacket(DUMMY_SYNC_ID, entry));
 		} else {
-			sendPacket(client, new EntryChangeS2CPacket(0, EntryChange.modify(entry).withDeobfName(oldName)));
+			sendPacket(client, new RenameS2CPacket(0, entry, oldName, refreshClassTree));
 		}
 	}
 

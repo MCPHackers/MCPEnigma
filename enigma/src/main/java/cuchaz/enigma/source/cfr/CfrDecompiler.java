@@ -24,6 +24,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.objectweb.asm.tree.ClassNode;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
 public class CfrDecompiler implements Decompiler {
@@ -32,7 +33,7 @@ public class CfrDecompiler implements Decompiler {
     private final SourceSettings settings;
 
     public CfrDecompiler(ClassProvider classProvider, SourceSettings sourceSettings) {
-        Map<String, String> options = Map.of("trackbytecodeloc", "true");
+        Map<String, String> options = new HashMap<>();
 
         state = new DCCommonState(OptionsImpl.getFactory().create(options), new ClassFileSource2() {
             @Override

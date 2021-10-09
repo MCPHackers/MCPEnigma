@@ -15,15 +15,19 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import javax.annotation.Nonnull;
 
 import cuchaz.enigma.ProgressListener;
 import cuchaz.enigma.translation.MappingTranslator;
@@ -31,11 +35,19 @@ import cuchaz.enigma.translation.Translator;
 import cuchaz.enigma.translation.mapping.AccessModifier;
 import cuchaz.enigma.translation.mapping.EntryMapping;
 import cuchaz.enigma.translation.mapping.MappingDelta;
+import cuchaz.enigma.translation.mapping.serde.MappingFileNameFormat;
+import cuchaz.enigma.translation.mapping.serde.MappingSaveParameters;
 import cuchaz.enigma.translation.mapping.VoidEntryResolver;
-import cuchaz.enigma.translation.mapping.serde.*;
+import cuchaz.enigma.translation.mapping.serde.LfPrintWriter;
+import cuchaz.enigma.translation.mapping.serde.MappingHelper;
+import cuchaz.enigma.translation.mapping.serde.MappingsWriter;
 import cuchaz.enigma.translation.mapping.tree.EntryTree;
 import cuchaz.enigma.translation.mapping.tree.EntryTreeNode;
-import cuchaz.enigma.translation.representation.entry.*;
+import cuchaz.enigma.translation.representation.entry.ClassEntry;
+import cuchaz.enigma.translation.representation.entry.Entry;
+import cuchaz.enigma.translation.representation.entry.FieldEntry;
+import cuchaz.enigma.translation.representation.entry.LocalVariableEntry;
+import cuchaz.enigma.translation.representation.entry.MethodEntry;
 import cuchaz.enigma.utils.I18n;
 
 public enum EnigmaMappingsWriter implements MappingsWriter {
@@ -45,7 +57,7 @@ public enum EnigmaMappingsWriter implements MappingsWriter {
 			Collection<ClassEntry> classes = mappings.getRootNodes()
 					.filter(entry -> entry.getEntry() instanceof ClassEntry)
 					.map(entry -> (ClassEntry) entry.getEntry())
-					.toList();
+					.collect(Collectors.toList());
 
 			progress.init(classes.size(), I18n.translate("progress.mappings.enigma_file.writing"));
 
@@ -66,7 +78,7 @@ public enum EnigmaMappingsWriter implements MappingsWriter {
 			Collection<ClassEntry> changedClasses = delta.getChangedRoots()
 					.filter(entry -> entry instanceof ClassEntry)
 					.map(entry -> (ClassEntry) entry)
-					.toList();
+					.collect(Collectors.toList());
 
 			applyDeletions(path, changedClasses, mappings, delta.getBaseMappings(), saveParameters.getFileNameFormat());
 
@@ -108,7 +120,7 @@ public enum EnigmaMappingsWriter implements MappingsWriter {
 				deletedClassStream = deletedClassStream.map(oldMappingTranslator::translate);
 			}
 
-			Collection<ClassEntry> deletedClasses = deletedClassStream.toList();
+			Collection<ClassEntry> deletedClasses = deletedClassStream.collect(Collectors.toList());
 
 			for (ClassEntry classEntry : deletedClasses) {
 				try {
@@ -173,22 +185,19 @@ public enum EnigmaMappingsWriter implements MappingsWriter {
 
 		EntryMapping classEntryMapping = mappings.get(classEntry);
 
-		if (classEntryMapping == null) {
-			classEntryMapping = EntryMapping.DEFAULT;
-		}
-
 		writer.println(writeClass(classEntry, classEntryMapping).trim());
-		if (classEntryMapping.javadoc() != null) {
+		if (classEntryMapping != null && classEntryMapping.getJavadoc() != null) {
 			writeDocs(writer, classEntryMapping, 0);
 		}
 
 		for (Entry<?> child : children) {
 			writeEntry(writer, mappings, child, 1);
 		}
+
 	}
 
 	private void writeDocs(PrintWriter writer, EntryMapping mapping, int depth) {
-		String jd = mapping.javadoc();
+		String jd = mapping.getJavadoc();
 		if (jd != null) {
 			for (String line : jd.split("\\R")) {
 				writer.println(indent(EnigmaFormat.COMMENT + " " + MappingHelper.escape(line), depth + 1));
@@ -204,26 +213,20 @@ public enum EnigmaMappingsWriter implements MappingsWriter {
 
 		EntryMapping mapping = node.getValue();
 
-		if (mapping == null) {
-			mapping = EntryMapping.DEFAULT;
-		}
-
-		String line = null;
-		if (entry instanceof ClassEntry classEntry) {
-			line = writeClass(classEntry, mapping);
-		} else if (entry instanceof MethodEntry methodEntry) {
-			line = writeMethod(methodEntry, mapping);
-		} else if (entry instanceof FieldEntry fieldEntry) {
-			line = writeField(fieldEntry, mapping);
-		} else if (entry instanceof LocalVariableEntry varEntry && mapping.targetName() != null) {
-			line = writeArgument(varEntry, mapping);
-		}
-
-		if (line != null) {
+		if (entry instanceof ClassEntry) {
+			String line = writeClass((ClassEntry) entry, mapping);
+			writer.println(indent(line, depth));
+		} else if (entry instanceof MethodEntry) {
+			String line = writeMethod((MethodEntry) entry, mapping);
+			writer.println(indent(line, depth));
+		} else if (entry instanceof FieldEntry) {
+			String line = writeField((FieldEntry) entry, mapping);
+			writer.println(indent(line, depth));
+		} else if (entry instanceof LocalVariableEntry && mapping != null) {
+			String line = writeArgument((LocalVariableEntry) entry, mapping);
 			writer.println(indent(line, depth));
 		}
-
-		if (mapping.javadoc() != null) {
+		if (mapping != null && mapping.getJavadoc() != null) {
 			writeDocs(writer, mapping, depth);
 		}
 
@@ -252,59 +255,63 @@ public enum EnigmaMappingsWriter implements MappingsWriter {
 				.forEach(result::add);
 
 		children.stream().filter(e -> e instanceof ClassEntry)
-				.map(e -> (ClassEntry) e)
-				.sorted()
-				.forEach(result::add);
+						.map(e -> (ClassEntry) e)
+						.sorted()
+						.forEach(result::add);
 
 		return result;
 	}
 
-	protected String writeClass(ClassEntry entry, @Nonnull EntryMapping mapping) {
-		StringBuilder builder = new StringBuilder(EnigmaFormat.CLASS + " ");
+	protected String writeClass(ClassEntry entry, EntryMapping mapping) {
+		StringBuilder builder = new StringBuilder(EnigmaFormat.CLASS +" ");
 		builder.append(entry.getName()).append(' ');
 		writeMapping(builder, mapping);
 
 		return builder.toString();
 	}
 
-	protected String writeMethod(MethodEntry entry, @Nonnull EntryMapping mapping) {
+	protected String writeMethod(MethodEntry entry, EntryMapping mapping) {
 		StringBuilder builder = new StringBuilder(EnigmaFormat.METHOD + " ");
 		builder.append(entry.getName()).append(' ');
-		writeMapping(builder, mapping);
+		if (mapping != null && !mapping.getTargetName().equals(entry.getName())) {
+			writeMapping(builder, mapping);
+		}
 
 		builder.append(entry.getDesc().toString());
 
 		return builder.toString();
 	}
 
-	protected String writeField(FieldEntry entry, @Nonnull EntryMapping mapping) {
+	protected String writeField(FieldEntry entry, EntryMapping mapping) {
 		StringBuilder builder = new StringBuilder(EnigmaFormat.FIELD + " ");
 		builder.append(entry.getName()).append(' ');
-		writeMapping(builder, mapping);
+		if (mapping != null && !mapping.getTargetName().equals(entry.getName())) {
+			writeMapping(builder, mapping);
+		}
 
 		builder.append(entry.getDesc().toString());
 
 		return builder.toString();
 	}
 
-	protected String writeArgument(LocalVariableEntry entry, @Nonnull EntryMapping mapping) {
-		return EnigmaFormat.PARAMETER + " " + entry.getIndex() + ' ' + mapping.targetName();
+	protected String writeArgument(LocalVariableEntry entry, EntryMapping mapping) {
+		return EnigmaFormat.PARAMETER + " " + entry.getIndex() + ' ' + mapping.getTargetName();
 	}
 
 	private void writeMapping(StringBuilder builder, EntryMapping mapping) {
-		if (mapping.targetName() != null) {
-			builder.append(mapping.targetName()).append(' ');
-			if (mapping.accessModifier() != AccessModifier.UNCHANGED) {
-				builder.append(mapping.accessModifier().getFormattedName()).append(' ');
+		if (mapping != null) {
+			builder.append(mapping.getTargetName()).append(' ');
+			if (mapping.getAccessModifier() != AccessModifier.UNCHANGED) {
+				builder.append(mapping.getAccessModifier().getFormattedName()).append(' ');
 			}
-		} else if (mapping.accessModifier() != AccessModifier.UNCHANGED) {
-			builder.append("- ").append(mapping.accessModifier().getFormattedName()).append(' ');
 		}
 	}
 
 	private String indent(String line, int depth) {
 		StringBuilder builder = new StringBuilder();
-		builder.append("\t".repeat(Math.max(0, depth)));
+		for (int i = 0; i < depth; i++) {
+			builder.append("\t");
+		}
 		builder.append(line.trim());
 		return builder.toString();
 	}

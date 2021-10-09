@@ -73,16 +73,13 @@ public class TinyMappingsWriter implements MappingsWriter {
         Translator translator = new MappingTranslator(mappings, VoidEntryResolver.INSTANCE);
 
         EntryMapping mapping = mappings.get(entry);
-
-        // Do not write mappings without deobfuscated name since tiny v1 doesn't
-        // support comments anyway
-		if (mapping != null && mapping.targetName() != null) {
+        if (mapping != null && !entry.getName().equals(mapping.getTargetName())) {
             if (entry instanceof ClassEntry) {
                 writeClass(writer, (ClassEntry) entry, translator);
             } else if (entry instanceof FieldEntry) {
-				writeLine(writer, serializeEntry(entry, mapping.targetName()));
+                writeLine(writer, serializeEntry(entry, mapping.getTargetName()));
             } else if (entry instanceof MethodEntry) {
-				writeLine(writer, serializeEntry(entry, mapping.targetName()));
+                writeLine(writer, serializeEntry(entry, mapping.getTargetName()));
             }
         }
 

@@ -17,6 +17,7 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.analysis.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class IndexReferenceVisitor extends ClassVisitor {
 	private final JarIndexer indexer;
@@ -111,7 +112,7 @@ public class IndexReferenceVisitor extends ClassVisitor {
 
 			if (insn.getOpcode() == Opcodes.INVOKEDYNAMIC) {
 				InvokeDynamicInsnNode invokeDynamicInsn = (InvokeDynamicInsnNode) insn;
-				List<AbstractInsnNode> args = values.stream().map(v -> v.right.insns.stream().findFirst().orElseThrow(AssertionError::new)).toList();
+				List<AbstractInsnNode> args = values.stream().map(v -> v.right.insns.stream().findFirst().orElseThrow(AssertionError::new)).collect(Collectors.toList());
 
 				if ("java/lang/invoke/LambdaMetafactory".equals(invokeDynamicInsn.bsm.getOwner()) && "metafactory".equals(invokeDynamicInsn.bsm.getName())) {
 					Type samMethodType = (Type) invokeDynamicInsn.bsmArgs[0];

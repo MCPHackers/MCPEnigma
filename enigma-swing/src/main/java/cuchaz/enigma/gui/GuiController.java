@@ -18,10 +18,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.swing.JOptionPane;
@@ -40,12 +40,10 @@ import cuchaz.enigma.classprovider.ClasspathClassProvider;
 import cuchaz.enigma.gui.config.NetConfig;
 import cuchaz.enigma.gui.config.UiConfig;
 import cuchaz.enigma.gui.dialog.ProgressDialog;
-import cuchaz.enigma.gui.newabstraction.EntryValidation;
 import cuchaz.enigma.gui.stats.StatsGenerator;
 import cuchaz.enigma.gui.stats.StatsMember;
 import cuchaz.enigma.gui.util.History;
 import cuchaz.enigma.network.*;
-import cuchaz.enigma.network.packet.EntryChangeC2SPacket;
 import cuchaz.enigma.network.packet.LoginC2SPacket;
 import cuchaz.enigma.network.packet.Packet;
 import cuchaz.enigma.source.DecompiledClassSource;
@@ -65,7 +63,6 @@ import cuchaz.enigma.translation.representation.entry.FieldEntry;
 import cuchaz.enigma.translation.representation.entry.MethodEntry;
 import cuchaz.enigma.utils.I18n;
 import cuchaz.enigma.utils.Utils;
-import cuchaz.enigma.utils.validation.PrintValidatable;
 import cuchaz.enigma.utils.validation.ValidationContext;
 
 public class GuiController implements ClientPacketHandler {
@@ -84,8 +81,6 @@ public class GuiController implements ClientPacketHandler {
 
 	private EnigmaClient client;
 	private EnigmaServer server;
-
-	private History<EntryReference<Entry<?>, Entry<?>>> referenceHistory;
 
 	public GuiController(Gui gui, EnigmaProfile profile) {
 		this.gui = gui;
@@ -155,17 +150,6 @@ public class GuiController implements ClientPacketHandler {
 		return saveMappings(path, loadedMappingFormat);
 	}
 
-	/**
-	 * Saves the mappings, with a dialog popping up, showing the progress.
-	 *
-	 * <p>Notice the returned completable future has to be completed by
-	 * {@link SwingUtilities#invokeLater(Runnable)}. Hence, do not try to
-	 * join on the future in gui, but rather call {@code thenXxx} methods.
-	 *
-	 * @param path the path of the save
-	 * @param format the format of the save
-	 * @return the future of saving
-	 */
 	public CompletableFuture<Void> saveMappings(Path path, MappingFormat format) {
 		if (project == null) return CompletableFuture.completedFuture(null);
 
@@ -301,46 +285,53 @@ public class GuiController implements ClientPacketHandler {
 		if (reference == null) {
 			throw new IllegalArgumentException("Reference cannot be null!");
 		}
-		if (this.referenceHistory == null) {
-			this.referenceHistory = new History<>(reference);
+		if (this.gui.referenceHistory == null) {
+			this.gui.referenceHistory = new History<>(reference);
 		} else {
-			if (!reference.equals(this.referenceHistory.getCurrent())) {
-				this.referenceHistory.push(reference);
+			if (!reference.equals(this.gui.referenceHistory.getCurrent())) {
+				this.gui.referenceHistory.push(reference);
 			}
 		}
-
-		this.gui.showReference(reference);
+		setReference(reference);
 	}
 
-	public List<Token> getTokensForReference(DecompiledClassSource source, EntryReference<Entry<?>, Entry<?>> reference) {
+	/**
+	 * Navigates to the reference without modifying history. If the class is not currently loaded, it will be loaded.
+	 *
+	 * @param reference the reference
+	 */
+	private void setReference(EntryReference<Entry<?>, Entry<?>> reference) {
+		gui.openClass(reference.getLocationClassEntry().getOutermostClass()).showReference(reference);
+	}
+
+	public Collection<Token> getTokensForReference(DecompiledClassSource source, EntryReference<Entry<?>, Entry<?>> reference) {
 		EntryRemapper mapper = this.project.getMapper();
 
 		SourceIndex index = source.getIndex();
 		return mapper.getObfResolver().resolveReference(reference, ResolutionStrategy.RESOLVE_CLOSEST)
 				.stream()
 				.flatMap(r -> index.getReferenceTokens(r).stream())
-				.sorted()
-				.toList();
+				.collect(Collectors.toList());
 	}
 
 	public void openPreviousReference() {
 		if (hasPreviousReference()) {
-			this.gui.showReference(referenceHistory.goBack());
+			setReference(gui.referenceHistory.goBack());
 		}
 	}
 
 	public boolean hasPreviousReference() {
-		return referenceHistory != null && referenceHistory.canGoBack();
+		return gui.referenceHistory != null && gui.referenceHistory.canGoBack();
 	}
 
 	public void openNextReference() {
 		if (hasNextReference()) {
-			this.gui.showReference(referenceHistory.goForward());
+			setReference(gui.referenceHistory.goForward());
 		}
 	}
 
 	public boolean hasNextReference() {
-		return referenceHistory != null && referenceHistory.canGoForward();
+		return gui.referenceHistory != null && gui.referenceHistory.canGoForward();
 	}
 
 	public void navigateTo(Entry<?> entry) {
@@ -358,9 +349,7 @@ public class GuiController implements ClientPacketHandler {
 		openReference(reference);
 	}
 
-	public void refreshClasses() {
-		if (project == null) return;
-		
+	private void refreshClasses() {
 		List<ClassEntry> obfClasses = Lists.newArrayList();
 		List<ClassEntry> deobfClasses = Lists.newArrayList();
 		this.addSeparatedClasses(obfClasses, deobfClasses);
@@ -376,11 +365,6 @@ public class GuiController implements ClientPacketHandler {
 				.filter(entry -> !entry.isInnerClass());
 
 		visibleClasses.forEach(entry -> {
-			if (gui.isSingleClassTree()) {
-				deobfClasses.add(entry);
-				return;
-			}
-
 			ClassEntry deobfEntry = mapper.deobfuscate(entry);
 
 			List<ObfuscationTestService> obfService = enigma.getServices().get(ObfuscationTestService.TYPE);
@@ -400,9 +384,22 @@ public class GuiController implements ClientPacketHandler {
 		});
 	}
 
-	public StructureTreeNode getClassStructure(ClassEntry entry, StructureTreeOptions options) {
+	public void onModifierChanged(ValidationContext vc, Entry<?> entry, AccessModifier modifier) {
+		EntryRemapper mapper = project.getMapper();
+
+		EntryMapping mapping = mapper.getDeobfMapping(entry);
+		if (mapping != null) {
+			mapper.mapFromObf(vc, entry, new EntryMapping(mapping.getTargetName(), modifier));
+		} else {
+			mapper.mapFromObf(vc, entry, new EntryMapping(entry.getName(), modifier));
+		}
+
+		chp.invalidateMapped();
+	}
+
+	public StructureTreeNode getClassStructure(ClassEntry entry, boolean hideDeobfuscated) {
 		StructureTreeNode rootNode = new StructureTreeNode(this.project, entry, entry);
-		rootNode.load(this.project, options);
+		rootNode.load(this.project, hideDeobfuscated);
 		return rootNode;
 	}
 
@@ -457,54 +454,74 @@ public class GuiController implements ClientPacketHandler {
 	}
 
 	@Override
-	public boolean applyChangeFromServer(EntryChange<?> change) {
-		ValidationContext vc = new ValidationContext();
-		vc.setActiveElement(PrintValidatable.INSTANCE);
-		this.applyChange0(vc, change);
+	public void rename(ValidationContext vc, EntryReference<Entry<?>, Entry<?>> reference, String newName, boolean refreshClassTree) {
+		rename(vc, reference, newName, refreshClassTree, false);
+	}
+
+	public void rename(ValidationContext vc, EntryReference<Entry<?>, Entry<?>> reference, String newName, boolean refreshClassTree, boolean validateOnly) {
+		Entry<?> entry = reference.getNameableEntry();
+		EntryMapping previous = project.getMapper().getDeobfMapping(entry);
+		project.getMapper().mapFromObf(vc, entry, previous != null ? previous.withName(newName) : new EntryMapping(newName), true, validateOnly);
 		gui.showStructure(gui.getActiveEditor());
 
-		return vc.canProceed();
+		if (validateOnly || !vc.canProceed()) return;
+
+		if (refreshClassTree && reference.entry instanceof ClassEntry && !((ClassEntry) reference.entry).isInnerClass())
+			this.gui.moveClassTree(reference.entry, newName);
+
+		chp.invalidateMapped();
 	}
 
-	public void validateChange(ValidationContext vc, EntryChange<?> change) {
-		if (change.getDeobfName().isSet()) {
-			EntryValidation.validateRename(vc, this.project, change.getTarget(), change.getDeobfName().getNewValue());
-		}
-
-		if (change.getJavadoc().isSet()) {
-			EntryValidation.validateJavadoc(vc, change.getJavadoc().getNewValue());
-		}
-	}
-
-	public void applyChange(ValidationContext vc, EntryChange<?> change) {
-		this.applyChange0(vc, change);
+	@Override
+	public void removeMapping(ValidationContext vc, EntryReference<Entry<?>, Entry<?>> reference) {
+		project.getMapper().removeByObf(vc, reference.getNameableEntry());
 		gui.showStructure(gui.getActiveEditor());
-		if (!vc.canProceed()) return;
-		this.sendPacket(new EntryChangeC2SPacket(change));
-	}
 
-	private void applyChange0(ValidationContext vc, EntryChange<?> change) {
-		validateChange(vc, change);
 		if (!vc.canProceed()) return;
 
-		Entry<?> target = change.getTarget();
-		EntryMapping prev = this.project.getMapper().getDeobfMapping(target);
-		EntryMapping mapping = EntryUtil.applyChange(vc, this.project.getMapper(), change);
+		if (reference.entry instanceof ClassEntry)
+			this.gui.moveClassTree(reference.entry, false, true);
 
-		boolean renamed = !change.getDeobfName().isUnchanged();
+		chp.invalidateMapped();
+	}
 
-		if (renamed && target instanceof ClassEntry && !((ClassEntry) target).isInnerClass()) {
-			this.gui.moveClassTree(target, prev.targetName() == null, mapping.targetName() == null);
+	@Override
+	public void changeDocs(ValidationContext vc, EntryReference<Entry<?>, Entry<?>> reference, String updatedDocs) {
+		changeDocs(vc, reference, updatedDocs, false);
+	}
+
+	public void changeDocs(ValidationContext vc, EntryReference<Entry<?>, Entry<?>> reference, String updatedDocs, boolean validateOnly) {
+		changeDoc(vc, reference.entry, updatedDocs, validateOnly);
+
+		if (validateOnly || !vc.canProceed()) return;
+
+		chp.invalidateJavadoc(reference.getLocationClassEntry());
+	}
+
+	private void changeDoc(ValidationContext vc, Entry<?> obfEntry, String newDoc, boolean validateOnly) {
+		EntryRemapper mapper = project.getMapper();
+
+		EntryMapping deobfMapping = mapper.getDeobfMapping(obfEntry);
+		if (deobfMapping == null) {
+			deobfMapping = new EntryMapping(mapper.deobfuscate(obfEntry).getName());
 		}
 
-		if (!Objects.equals(prev.targetName(), mapping.targetName())) {
-			this.chp.invalidateMapped();
-		}
+		mapper.mapFromObf(vc, obfEntry, deobfMapping.withDocs(newDoc), false, validateOnly);
+	}
 
-		if (!Objects.equals(prev.javadoc(), mapping.javadoc())) {
-			this.chp.invalidateJavadoc(target.getTopLevelClass());
-		}
+	@Override
+	public void markAsDeobfuscated(ValidationContext vc, EntryReference<Entry<?>, Entry<?>> reference) {
+		EntryRemapper mapper = project.getMapper();
+		Entry<?> entry = reference.getNameableEntry();
+		mapper.mapFromObf(vc, entry, new EntryMapping(mapper.deobfuscate(entry).getName()));
 		gui.showStructure(gui.getActiveEditor());
+
+		if (!vc.canProceed()) return;
+
+		if (reference.entry instanceof ClassEntry && !((ClassEntry) reference.entry).isInnerClass())
+			this.gui.moveClassTree(reference.entry, true, false);
+
+		chp.invalidateMapped();
 	}
 
 	public void openStats(Set<StatsMember> includedMembers, String topLevelPackage, boolean includeSynthetic) {

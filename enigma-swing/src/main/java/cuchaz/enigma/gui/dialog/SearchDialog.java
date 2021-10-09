@@ -17,7 +17,6 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.event.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -143,23 +142,30 @@ public class SearchDialog {
 		final EntryIndex entryIndex = parent.getController().project.getJarIndex().getEntryIndex();
 
 		switch (type) {
-			case CLASS -> entryIndex.getClasses().parallelStream()
-					.filter(e -> !e.isInnerClass())
-					.map(e -> SearchEntryImpl.from(e, parent.getController()))
-					.map(SearchUtil.Entry::from)
-					.sequential()
-					.forEach(su::add);
-			case METHOD -> entryIndex.getMethods().parallelStream()
-					.filter(e -> !e.isConstructor() && !entryIndex.getMethodAccess(e).isSynthetic())
-					.map(e -> SearchEntryImpl.from(e, parent.getController()))
-					.map(SearchUtil.Entry::from)
-					.sequential()
-					.forEach(su::add);
-			case FIELD -> entryIndex.getFields().parallelStream()
-					.map(e -> SearchEntryImpl.from(e, parent.getController()))
-					.map(SearchUtil.Entry::from)
-					.sequential()
-					.forEach(su::add);
+			default:
+			case CLASS:
+				entryIndex.getClasses().parallelStream()
+						.filter(e -> !e.isInnerClass())
+						.map(e -> SearchEntryImpl.from(e, parent.getController()))
+						.map(SearchUtil.Entry::from)
+						.sequential()
+						.forEach(su::add);
+				break;
+			case METHOD:
+				entryIndex.getMethods().parallelStream()
+						.filter(e -> !e.isConstructor() && !entryIndex.getMethodAccess(e).isSynthetic())
+						.map(e -> SearchEntryImpl.from(e, parent.getController()))
+						.map(SearchUtil.Entry::from)
+						.sequential()
+						.forEach(su::add);
+				break;
+			case FIELD:
+				entryIndex.getFields().parallelStream()
+						.map(e -> SearchEntryImpl.from(e, parent.getController()))
+						.map(SearchUtil.Entry::from)
+						.sequential()
+						.forEach(su::add);
+				break;
 		}
 
 		updateList();
@@ -208,31 +214,7 @@ public class SearchDialog {
 		this.classListModel = classListModel;
 		classList.setModel(classListModel);
 
-		// handle these search result like minecraft scheduled tasks to prevent
-		// flooding swing buttons inputs etc with tons of (possibly outdated) invocations
-		record Order(int idx, SearchEntryImpl e) {}
-		Queue<Order> queue = new ConcurrentLinkedQueue<>();
-		Runnable updater = new Runnable() {
-			@Override
-			public void run() {
-				if (SearchDialog.this.classListModel != classListModel || !SearchDialog.this.dialog.isVisible()) {
-					return;
-				}
-
-				// too large count may increase delay for key and input handling, etc.
-				int count = 100;
-				while (count > 0 && !queue.isEmpty()) {
-					var o = queue.remove();
-					classListModel.insertElementAt(o.e, o.idx);
-					count--;
-				}
-
-				SwingUtilities.invokeLater(this);
-			}
-		};
-
-		currentSearch = su.asyncSearch(searchField.getText(), (idx, e) -> queue.add(new Order(idx, e)));
-		SwingUtilities.invokeLater(updater);
+		currentSearch = su.asyncSearch(searchField.getText(), (idx, e) -> SwingUtilities.invokeLater(() -> classListModel.insertElementAt(e, idx)));
 	}
 
 	public void dispose() {
@@ -308,10 +290,10 @@ public class SearchDialog {
 				secondaryName.setToolTipText(value.obf.getFullName());
 			}
 
-			if (value.obf instanceof ClassEntry classEntry) {
-				mainName.setIcon(GuiUtil.getClassIcon(gui, classEntry));
-			} else if (value.obf instanceof MethodEntry methodEntry) {
-				mainName.setIcon(GuiUtil.getMethodIcon(methodEntry));
+			if (value.obf instanceof ClassEntry) {
+				mainName.setIcon(GuiUtil.getClassIcon(gui, (ClassEntry) value.obf));
+			} else if (value.obf instanceof MethodEntry) {
+				mainName.setIcon(GuiUtil.getMethodIcon((MethodEntry) value.obf));
 			} else if (value.obf instanceof FieldEntry) {
 				mainName.setIcon(GuiUtil.FIELD_ICON);
 			}

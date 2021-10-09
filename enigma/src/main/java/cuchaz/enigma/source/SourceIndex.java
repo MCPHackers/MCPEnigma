@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public class SourceIndex {
     private String source;
@@ -158,7 +159,7 @@ public class SourceIndex {
             Collection<Token> newTokens = oldTokens
                     .stream()
                     .map(result::getRemappedToken)
-                    .toList();
+                    .collect(Collectors.toList());
 
             remapped.referenceToTokens.putAll(reference, newTokens);
         }

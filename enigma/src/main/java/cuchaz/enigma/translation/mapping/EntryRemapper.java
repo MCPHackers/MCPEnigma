@@ -1,11 +1,11 @@
 package cuchaz.enigma.translation.mapping;
 
 import java.util.Collection;
-import java.util.Objects;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import cuchaz.enigma.analysis.index.JarIndex;
 import cuchaz.enigma.translation.MappingTranslator;
@@ -51,15 +51,15 @@ public class EntryRemapper {
 		return new EntryRemapper(index, new HashEntryTree<>());
 	}
 
-	public void validatePutMapping(ValidationContext vc, Entry<?> obfuscatedEntry, @Nonnull EntryMapping deobfMapping) {
-		doPutMapping(vc, obfuscatedEntry, deobfMapping, true);
+	public <E extends Entry<?>> void mapFromObf(ValidationContext vc, E obfuscatedEntry, @Nullable EntryMapping deobfMapping) {
+		mapFromObf(vc, obfuscatedEntry, deobfMapping, true);
 	}
 
-	public void putMapping(ValidationContext vc, Entry<?> obfuscatedEntry, @Nonnull EntryMapping deobfMapping) {
-		doPutMapping(vc, obfuscatedEntry, deobfMapping, false);
+	public <E extends Entry<?>> void mapFromObf(ValidationContext vc, E obfuscatedEntry, @Nullable EntryMapping deobfMapping, boolean renaming) {
+		mapFromObf(vc, obfuscatedEntry, deobfMapping, renaming, false);
 	}
 
-	private void doPutMapping(ValidationContext vc, Entry<?> obfuscatedEntry, @Nonnull EntryMapping deobfMapping, boolean validateOnly) {
+	public <E extends Entry<?>> void mapFromObf(ValidationContext vc, E obfuscatedEntry, @Nullable EntryMapping deobfMapping, boolean renaming, boolean validateOnly) {
 		if (obfuscatedEntry instanceof FieldEntry) {
 			FieldEntry fieldEntry = (FieldEntry) obfuscatedEntry;
 			ClassEntry classEntry = fieldEntry.getParent();
@@ -67,42 +67,40 @@ public class EntryRemapper {
 			mapRecordComponentGetter(vc, classEntry, fieldEntry, deobfMapping);
 		}
 
-		boolean renaming = !Objects.equals(getDeobfMapping(obfuscatedEntry).targetName(), deobfMapping.targetName());
+		Collection<E> resolvedEntries = obfResolver.resolveEntry(obfuscatedEntry, renaming ? ResolutionStrategy.RESOLVE_ROOT : ResolutionStrategy.RESOLVE_CLOSEST);
 
-		Collection<Entry<?>> resolvedEntries = obfResolver.resolveEntry(obfuscatedEntry, renaming ? ResolutionStrategy.RESOLVE_ROOT : ResolutionStrategy.RESOLVE_CLOSEST);
-
-		if (renaming && deobfMapping.targetName() != null) {
-			for (Entry<?> resolvedEntry : resolvedEntries) {
-				validator.validateRename(vc, resolvedEntry, deobfMapping.targetName());
+		if (renaming && deobfMapping != null) {
+			for (E resolvedEntry : resolvedEntries) {
+				validator.validateRename(vc, resolvedEntry, deobfMapping.getTargetName());
 			}
 		}
 
 		if (validateOnly || !vc.canProceed()) return;
 
-		for (Entry<?> resolvedEntry : resolvedEntries) {
-			if (deobfMapping.equals(EntryMapping.DEFAULT)) {
-				obfToDeobf.insert(resolvedEntry, null);
-			} else {
-				obfToDeobf.insert(resolvedEntry, deobfMapping);
-			}
+		for (E resolvedEntry : resolvedEntries) {
+			obfToDeobf.insert(resolvedEntry, deobfMapping);
 		}
 	}
 
-	// A little bit of a hack to also map the getter method for record fields.
+	public void removeByObf(ValidationContext vc, Entry<?> obfuscatedEntry) {
+		mapFromObf(vc, obfuscatedEntry, null);
+	}
+
+	// A little bit of a hack to also map the getter method for record fields/components.
 	private void mapRecordComponentGetter(ValidationContext vc, ClassEntry classEntry, FieldEntry fieldEntry, EntryMapping fieldMapping) {
-		if (!jarIndex.getEntryIndex().getDefinition(classEntry).isRecord() || jarIndex.getEntryIndex().getFieldAccess(fieldEntry).isStatic()) {
+		if (!jarIndex.getEntryIndex().getClassAccess(classEntry).isRecord() || jarIndex.getEntryIndex().getFieldAccess(fieldEntry).isStatic()) {
 			return;
 		}
 
 		// Find all the methods in this record class
 		List<MethodEntry> classMethods = jarIndex.getEntryIndex().getMethods().stream()
 				.filter(entry -> classEntry.equals(entry.getParent()))
-				.toList();
+				.collect(Collectors.toList());
 
 		MethodEntry methodEntry = null;
 
 		for (MethodEntry method : classMethods) {
-			// Find the matching record component getter via matching the names. TODO: Support when the record field and method names do not match
+			// Find the matching record component getter via matching the names. My understanding is this is safe, failing this it may need to be a bit more intelligent
 			if (method.getName().equals(fieldEntry.getName()) && method.getDesc().toString().equals("()" + fieldEntry.getDesc())) {
 				methodEntry = method;
 				break;
@@ -110,18 +108,20 @@ public class EntryRemapper {
 		}
 
 		if (methodEntry == null && fieldMapping != null) {
-			vc.raise(Message.UNKNOWN_RECORD_GETTER, fieldMapping.targetName());
+			vc.raise(Message.UNKNOWN_RECORD_GETTER, fieldMapping.getTargetName());
 			return;
 		}
 
-		// Also remap the associated method, without the javadoc.
-		doPutMapping(vc, methodEntry, new EntryMapping(fieldMapping.targetName()), false);
+		mapFromObf(vc, methodEntry, fieldMapping != null ? new EntryMapping(fieldMapping.getTargetName()) : null);
 	}
 
-	@Nonnull
+	@Nullable
 	public EntryMapping getDeobfMapping(Entry<?> entry) {
-		EntryMapping entryMapping = obfToDeobf.get(entry);
-		return entryMapping == null ? EntryMapping.DEFAULT : entryMapping;
+		return obfToDeobf.get(entry);
+	}
+
+	public boolean hasDeobfMapping(Entry<?> obfEntry) {
+		return obfToDeobf.contains(obfEntry);
 	}
 
 	public <T extends Translatable> TranslateResult<T> extendedDeobfuscate(T translatable) {
@@ -159,9 +159,4 @@ public class EntryRemapper {
 	public EntryResolver getObfResolver() {
 		return obfResolver;
 	}
-
-	public MappingValidator getValidator() {
-		return validator;
-	}
-
 }

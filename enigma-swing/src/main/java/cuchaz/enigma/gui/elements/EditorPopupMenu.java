@@ -8,7 +8,6 @@ import javax.swing.JPopupMenu;
 import javax.swing.KeyStroke;
 
 import cuchaz.enigma.analysis.EntryReference;
-import cuchaz.enigma.gui.EditableType;
 import cuchaz.enigma.gui.Gui;
 import cuchaz.enigma.gui.GuiController;
 import cuchaz.enigma.gui.panels.EditorPanel;
@@ -148,22 +147,20 @@ public class EditorPopupMenu {
 
 		boolean isClassEntry = referenceEntry instanceof ClassEntry;
 		boolean isFieldEntry = referenceEntry instanceof FieldEntry;
-		boolean isMethodEntry = referenceEntry instanceof MethodEntry me && !me.isConstructor();
-		boolean isConstructorEntry = referenceEntry instanceof MethodEntry me && me.isConstructor();
+		boolean isMethodEntry = referenceEntry instanceof MethodEntry && !((MethodEntry) referenceEntry).isConstructor();
+		boolean isConstructorEntry = referenceEntry instanceof MethodEntry && ((MethodEntry) referenceEntry).isConstructor();
 		boolean isRenamable = ref != null && controller.project.isRenamable(ref);
 
-		EditableType type = EditableType.fromEntry(referenceEntry);
-
-		this.renameItem.setEnabled(isRenamable && (type != null && this.gui.isEditable(type)));
-		this.editJavadocItem.setEnabled(isRenamable && this.gui.isEditable(EditableType.JAVADOC));
+		this.renameItem.setEnabled(isRenamable);
+		this.editJavadocItem.setEnabled(isRenamable);
 		this.showInheritanceItem.setEnabled(isClassEntry || isMethodEntry || isConstructorEntry);
 		this.showImplementationsItem.setEnabled(isClassEntry || isMethodEntry);
-		this.showCallsItem.setEnabled(isRenamable && (isClassEntry || isFieldEntry || isMethodEntry || isConstructorEntry));
-		this.showCallsSpecificItem.setEnabled(isRenamable && isMethodEntry);
+		this.showCallsItem.setEnabled(isClassEntry || isFieldEntry || isMethodEntry || isConstructorEntry);
+		this.showCallsSpecificItem.setEnabled(isMethodEntry);
 		this.openEntryItem.setEnabled(isRenamable && (isClassEntry || isFieldEntry || isMethodEntry || isConstructorEntry));
 		this.openPreviousItem.setEnabled(controller.hasPreviousReference());
 		this.openNextItem.setEnabled(controller.hasNextReference());
-		this.toggleMappingItem.setEnabled(isRenamable && (type != null && this.gui.isEditable(type)));
+		this.toggleMappingItem.setEnabled(isRenamable);
 
 		if (referenceEntry != null && this.gui.getController().project.getMapper().extendedDeobfuscate(referenceEntry).isDeobfuscated()) {
 			this.toggleMappingItem.setText(I18n.translate("popup_menu.reset_obfuscated"));

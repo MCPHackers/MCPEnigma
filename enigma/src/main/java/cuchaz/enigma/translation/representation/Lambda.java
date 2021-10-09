@@ -35,9 +35,9 @@ public class Lambda implements Translatable {
 		EntryMapping samMethodMapping = resolveMapping(resolver, mappings, samMethod);
 
 		return TranslateResult.of(
-				samMethodMapping.targetName() == null ? RenamableTokenType.OBFUSCATED : RenamableTokenType.DEOBFUSCATED,
+				samMethodMapping == null ? RenamableTokenType.OBFUSCATED : RenamableTokenType.DEOBFUSCATED,
 				new Lambda(
-						samMethodMapping.targetName() != null ? samMethodMapping.targetName() : invokedName,
+						samMethodMapping != null ? samMethodMapping.getTargetName() : invokedName,
 						invokedType.extendedTranslate(translator, resolver, mappings).getValue(),
 						samMethodType.extendedTranslate(translator, resolver, mappings).getValue(),
 						implMethod.extendedTranslate(translator, resolver, mappings).getValue(),
@@ -53,7 +53,7 @@ public class Lambda implements Translatable {
 				return mapping;
 			}
 		}
-		return EntryMapping.DEFAULT;
+		return null;
 	}
 
 	public ClassEntry getInterface() {

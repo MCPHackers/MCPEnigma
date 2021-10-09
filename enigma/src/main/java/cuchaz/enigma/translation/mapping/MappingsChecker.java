@@ -24,6 +24,7 @@ import cuchaz.enigma.translation.representation.entry.MethodEntry;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class MappingsChecker {
 	private final JarIndex index;
@@ -39,7 +40,7 @@ public class MappingsChecker {
 
 		Collection<Entry<?>> obfEntries = mappings.getAllEntries()
 				.filter(e -> e instanceof ClassEntry || e instanceof MethodEntry || e instanceof FieldEntry || e instanceof LocalVariableEntry)
-				.toList();
+				.collect(Collectors.toList());
 
 		progress.init(obfEntries.size(), "Checking for dropped mappings");
 
@@ -75,7 +76,7 @@ public class MappingsChecker {
 		private final Map<Entry<?>, String> droppedMappings = new HashMap<>();
 
 		public void drop(Entry<?> entry, EntryMapping mapping) {
-			droppedMappings.put(entry, mapping.targetName() != null ? mapping.targetName() : entry.getName());
+			droppedMappings.put(entry, mapping.getTargetName());
 		}
 
 		void apply(EntryTree<EntryMapping> mappings) {
