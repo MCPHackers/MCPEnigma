@@ -3,6 +3,8 @@ package cuchaz.enigma.translation.mapping.serde;
 import cuchaz.enigma.ProgressListener;
 import cuchaz.enigma.translation.mapping.EntryMapping;
 import cuchaz.enigma.translation.mapping.MappingDelta;
+import cuchaz.enigma.translation.mapping.serde.csv.MCP43CSVReader;
+import cuchaz.enigma.translation.mapping.serde.csv.MCP43CSVWriter;
 import cuchaz.enigma.translation.mapping.serde.enigma.EnigmaMappingsReader;
 import cuchaz.enigma.translation.mapping.serde.enigma.EnigmaMappingsWriter;
 import cuchaz.enigma.translation.mapping.serde.proguard.ProguardMappingsReader;
@@ -24,7 +26,8 @@ public enum MappingFormat {
 	TINY_V2(new TinyV2Writer("intermediary", "named"), new TinyV2Reader()),
 	TINY_FILE(TinyMappingsWriter.INSTANCE, TinyMappingsReader.INSTANCE),
 	SRG_FILE(SrgMappingsWriter.INSTANCE, null),
-	PROGUARD(null, ProguardMappingsReader.INSTANCE);
+	PROGUARD(null, ProguardMappingsReader.INSTANCE),
+	MCP43CSV(MCP43CSVWriter.INSTANCE, MCP43CSVReader.INSTANCE);
 
 
 	private final MappingsWriter writer;
