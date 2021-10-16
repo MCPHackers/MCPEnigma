@@ -55,12 +55,13 @@ public enum MCP43CSVWriter implements MappingsWriter {
                 String parentEntry = classEntry.getParent() != null ? classEntry.getParent().getSimpleName() : "";
                 EntryMapping mapping = mappings.get(classEntry);
 
-                String targetName = mapping != null ? getClassWithoutPackage(mapping.getTargetName()) : classEntry.getSimpleName();
-                String packageName = classEntry.getPackageName() != null ? classEntry.getPackageName() : "net/minecraft/src";
+                //String targetName = mapping != null ? getClassWithoutPackage(mapping.getTargetName()) : classEntry.getSimpleName();
+                Translator translator = new MappingTranslator(mappings, VoidEntryResolver.INSTANCE);
+                String packageName = translator.translate(classEntry).getPackageName() != null ? translator.translate(classEntry).getPackageName() : classEntry.getPackageName();
 
                 writer.println(
-                        "\"" + targetName + "\"," +
-                        "\"" + classEntry.getSimpleName() + "\"," +
+                        "\"" + translator.translate(classEntry).getSimpleName() + "\"," +
+                        "\"" + classEntry.getFullName() + "\"," +
                         "\"" + parentEntry + "\"," +
                         "\"" + packageName + "\"," +
                         "\"0\""
@@ -88,6 +89,7 @@ public enum MCP43CSVWriter implements MappingsWriter {
 
                 if (!methodEntry.isConstructor()) {
                     String targetName = mapping != null ? mapping.getTargetName() : methodEntry.getName();
+                    String packageName = translator.translate(classEntry).getPackageName() != null ? translator.translate(classEntry).getPackageName() : targetName;
 
                     writer.println(
                             "\"" + targetName + "\"," +
@@ -95,9 +97,9 @@ public enum MCP43CSVWriter implements MappingsWriter {
                             "\"" + methodEntry.getSimpleName() + "\"," +
                             "\"" + translator.translate(methodEntry).getDesc() + "\"," +
                             "\"" + methodEntry.getDesc() + "\"," +
-                            "\"" + translator.translate(classEntry).getSimpleName() + "\"," +
-                            "\"" + classEntry.getSimpleName() + "\"," +
-                            "\"" + (classEntry.getPackageName() != null ? classEntry.getPackageName() : "net/minecraft/src") + "\"," +
+                            "\"" + translator.translate(classEntry).getFullName() + "\"," +
+                            "\"" + classEntry.getFullName() + "\"," +
+                            "\"" + packageName + "\"," +
                             "\"0\""
                     );
                 }
@@ -125,6 +127,7 @@ public enum MCP43CSVWriter implements MappingsWriter {
                 Translator translator = new MappingTranslator(mappings, VoidEntryResolver.INSTANCE);
 
                 String targetName = mapping.getTargetName() != null ? mapping.getTargetName() : fieldEntry.getName();
+                String packageName = translator.translate(classEntry).getPackageName() != null ? translator.translate(classEntry).getPackageName() : targetName;
 
                 writer.println(
                         "\"" + targetName + "\"," +
@@ -132,9 +135,9 @@ public enum MCP43CSVWriter implements MappingsWriter {
                         "\"" + fieldEntry.getSimpleName() + "\"," +
                         "\"" + translator.translate(fieldEntry).getDesc() + "\"," +
                         "\"" + fieldEntry.getDesc() + "\"," +
-                        "\"" + translator.translate(classEntry).getSimpleName() + "\"," +
-                        "\"" + classEntry.getSimpleName() + "\"," +
-                        "\"" + (classEntry.getPackageName() != null ? classEntry.getPackageName() : "net/minecraft/src") + "\"," +
+                        "\"" + translator.translate(classEntry).getFullName() + "\"," +
+                        "\"" + classEntry.getFullName() + "\"," +
+                        "\"" + packageName + "\"," +
                         "\"0\""
                 );
 
@@ -153,6 +156,8 @@ public enum MCP43CSVWriter implements MappingsWriter {
             return "net/minecraft/src";
         }
     }
+
+
 
     // Utility methods
     private String getClassWithoutPackage(String classWithPackage) {
