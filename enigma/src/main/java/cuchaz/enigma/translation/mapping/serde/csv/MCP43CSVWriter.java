@@ -57,7 +57,7 @@ public enum MCP43CSVWriter implements MappingsWriter {
 
                 //String targetName = mapping != null ? getClassWithoutPackage(mapping.getTargetName()) : classEntry.getSimpleName();
                 Translator translator = new MappingTranslator(mappings, VoidEntryResolver.INSTANCE);
-                String packageName = translator.translate(classEntry).getPackageName() != null ? translator.translate(classEntry).getPackageName() : classEntry.getPackageName();
+                String packageName = translator.translate(classEntry).getPackageName() != null ? translator.translate(classEntry).getPackageName() : classEntry.getPackageName() != null ? classEntry.getPackageName() : "net/minecraft/src";
 
                 writer.println(
                         "\"" + translator.translate(classEntry).getSimpleName() + "\"," +
@@ -89,7 +89,7 @@ public enum MCP43CSVWriter implements MappingsWriter {
 
                 if (!methodEntry.isConstructor()) {
                     String targetName = mapping != null ? mapping.getTargetName() : methodEntry.getName();
-                    String packageName = translator.translate(classEntry).getPackageName() != null ? translator.translate(classEntry).getPackageName() : targetName;
+                    String packageName = translator.translate(classEntry).getPackageName() != null ? translator.translate(classEntry).getPackageName() : classEntry.getPackageName() != null ? classEntry.getPackageName() : "net/minecraft/src";
 
                     writer.println(
                             "\"" + targetName + "\"," +
@@ -127,7 +127,7 @@ public enum MCP43CSVWriter implements MappingsWriter {
                 Translator translator = new MappingTranslator(mappings, VoidEntryResolver.INSTANCE);
 
                 String targetName = mapping.getTargetName() != null ? mapping.getTargetName() : fieldEntry.getName();
-                String packageName = translator.translate(classEntry).getPackageName() != null ? translator.translate(classEntry).getPackageName() : targetName;
+                String packageName = translator.translate(classEntry).getPackageName() != null ? translator.translate(classEntry).getPackageName() : classEntry.getPackageName() != null ? classEntry.getPackageName() : "net/minecraft/src";
 
                 writer.println(
                         "\"" + targetName + "\"," +
