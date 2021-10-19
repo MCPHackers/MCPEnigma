@@ -23,7 +23,14 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public enum MCP43CSVWriter implements MappingsWriter {
-    INSTANCE;
+    CLIENT(0),
+    SERVER(1);
+
+    public int side;
+
+    MCP43CSVWriter(int side) {
+        this.side = side;
+    }
 
     @Override
     public void write(EntryTree<EntryMapping> mappings, MappingDelta<EntryMapping> delta, Path basePath, ProgressListener progress, MappingSaveParameters saveParameters) {
@@ -32,12 +39,9 @@ public enum MCP43CSVWriter implements MappingsWriter {
         List<EntryTreeNode<EntryMapping>> fields = StreamSupport.stream(mappings.spliterator(), false).filter(node -> node.getEntry() instanceof FieldEntry).collect(Collectors.toList());
 
         try {
-
-
             writeClasses(mappings, basePath, classes);
             writeMethods(mappings, basePath, methods);
             writeFields(mappings, basePath, fields);
-
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -64,7 +68,7 @@ public enum MCP43CSVWriter implements MappingsWriter {
                         "\"" + classEntry.getFullName() + "\"," +
                         "\"" + parentEntry + "\"," +
                         "\"" + packageName + "\"," +
-                        "\"0\""
+                        "\"" + this.side +"\""
                 );
             }
         } catch (Exception ex) {
@@ -100,7 +104,7 @@ public enum MCP43CSVWriter implements MappingsWriter {
                             "\"" + translator.translate(classEntry).getFullName() + "\"," +
                             "\"" + classEntry.getFullName() + "\"," +
                             "\"" + packageName + "\"," +
-                            "\"0\""
+                            "\"" + side + "\""
                     );
                 }
 
@@ -138,7 +142,7 @@ public enum MCP43CSVWriter implements MappingsWriter {
                         "\"" + translator.translate(classEntry).getFullName() + "\"," +
                         "\"" + classEntry.getFullName() + "\"," +
                         "\"" + packageName + "\"," +
-                        "\"0\""
+                        "\"" + side + "\""
                 );
 
                 i++;

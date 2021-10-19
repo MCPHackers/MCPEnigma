@@ -29,7 +29,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public enum MCP43CSVReader implements MappingsReader {
-    INSTANCE;
+    CLIENT(0),
+    SERVER(1);
+
+    public int side;
+
+    MCP43CSVReader(int side) {
+        this.side = side;
+    }
 
     @Override
     public EntryTree<EntryMapping> read(Path root, ProgressListener progress, MappingSaveParameters saveParameters) throws IOException, MappingParseException {
@@ -61,7 +68,7 @@ public enum MCP43CSVReader implements MappingsReader {
         return mappings;
     }
 
-    private static void readClasses(Path path, EntryTree<EntryMapping> mappings) throws IOException, MappingParseException {
+    private void readClasses(Path path, EntryTree<EntryMapping> mappings) throws IOException, MappingParseException {
         List<String> lines = Files.readAllLines(path, Charsets.UTF_8);
         Deque<MappingPair<?, RawEntryMapping>> mappingStack = new ArrayDeque<>();
 
@@ -88,7 +95,7 @@ public enum MCP43CSVReader implements MappingsReader {
         }
     }
 
-    private static void readMethods(Path path, EntryTree<EntryMapping> mappings) throws IOException, MappingParseException {
+    private void readMethods(Path path, EntryTree<EntryMapping> mappings) throws IOException, MappingParseException {
         List<String> lines = Files.readAllLines(path, Charsets.UTF_8);
         Deque<MappingPair<?, RawEntryMapping>> mappingStack = new ArrayDeque<>();
 
@@ -115,7 +122,7 @@ public enum MCP43CSVReader implements MappingsReader {
         }
     }
 
-    private static void readFields(Path path, EntryTree<EntryMapping> mappings) throws IOException, MappingParseException {
+    private void readFields(Path path, EntryTree<EntryMapping> mappings) throws IOException, MappingParseException {
         List<String> lines = Files.readAllLines(path, Charsets.UTF_8);
         Deque<MappingPair<?, RawEntryMapping>> mappingStack = new ArrayDeque<>();
 
@@ -143,16 +150,20 @@ public enum MCP43CSVReader implements MappingsReader {
     }
 
     // Utility methods
-    private static MappingPair<ClassEntry, RawEntryMapping> parseClassLine(@Nullable Entry<?> parent, String[] tokens) {
+    private MappingPair<ClassEntry, RawEntryMapping> parseClassLine(@Nullable Entry<?> parent, String[] tokens) {
         // Header: "name","notch","supername","package","side"
         String obfuscatedName = ClassEntry.getInnerName(tokens[1].replaceAll("\"", ""));
         ClassEntry obfuscatedEntry = parent != null ? new ClassEntry((ClassEntry) parent, obfuscatedName) : new ClassEntry(obfuscatedName);
 
         String mapping = ClassEntry.getInnerName(tokens[0].replaceAll("\"", ""));
-        return new MappingPair<>(obfuscatedEntry, new RawEntryMapping(mapping, AccessModifier.UNCHANGED));
+        if (Integer.parseInt(tokens[4].replaceAll("\"", "")) == this.side) {
+            return new MappingPair<>(obfuscatedEntry, new RawEntryMapping(mapping, AccessModifier.UNCHANGED));
+        } else {
+            return null;
+        }
     }
 
-    private static MappingPair<MethodEntry, RawEntryMapping> parseMethodLine(@Nullable Entry<?> parent, String[] tokens) {
+    private MappingPair<MethodEntry, RawEntryMapping> parseMethodLine(@Nullable Entry<?> parent, String[] tokens) {
         // Header: "searge","name","notch","sig","notchsig","classname","classnotch","package","side"
         if (!(parent instanceof ClassEntry)) {
             throw new RuntimeException("Method must be a child of a class!");
@@ -165,10 +176,14 @@ public enum MCP43CSVReader implements MappingsReader {
         MethodDescriptor descriptor = new MethodDescriptor(tokens[4].replaceAll("\"", ""));
 
         MethodEntry obfuscatedEntry = new MethodEntry(ownerEntry, obfuscatedName, descriptor);
-        return new MappingPair<>(obfuscatedEntry, new RawEntryMapping(mapping, modifier));
+        if (Integer.parseInt(tokens[8].replaceAll("\"", "")) == this.side) {
+            return new MappingPair<>(obfuscatedEntry, new RawEntryMapping(mapping, modifier));
+        } else {
+            return null;
+        }
     }
 
-    private static MappingPair<FieldEntry, RawEntryMapping> parseFieldLine(@Nullable Entry<?> parent, String[] tokens) {
+    private MappingPair<FieldEntry, RawEntryMapping> parseFieldLine(@Nullable Entry<?> parent, String[] tokens) {
         // Header: "searge","name","notch","sig","notchsig","classname","classnotch","package","side"
         if (!(parent instanceof ClassEntry)) {
             throw new RuntimeException("Field must be a child of a class!");
@@ -182,7 +197,12 @@ public enum MCP43CSVReader implements MappingsReader {
         TypeDescriptor descriptor = new TypeDescriptor(tokens[4].replaceAll("\"", ""));
 
         FieldEntry obfuscatedEntry = new FieldEntry(ownerEntry, obfuscatedName, descriptor);
-        return new MappingPair<>(obfuscatedEntry, new RawEntryMapping(mapping, modifier));
+
+        if (Integer.parseInt(tokens[8].replaceAll("\"", "")) == this.side) {
+            return new MappingPair<>(obfuscatedEntry, new RawEntryMapping(mapping, modifier));
+        } else {
+            return null;
+        }
     }
 
     private static void cleanMappingStack(int indentation, Deque<MappingPair<?, RawEntryMapping>> mappingStack, EntryTree<EntryMapping> mappings) {

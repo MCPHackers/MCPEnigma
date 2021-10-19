@@ -27,7 +27,8 @@ public enum MappingFormat {
 	TINY_FILE(TinyMappingsWriter.INSTANCE, TinyMappingsReader.INSTANCE),
 	SRG_FILE(SrgMappingsWriter.INSTANCE, null),
 	PROGUARD(null, ProguardMappingsReader.INSTANCE),
-	MCP43CSV(MCP43CSVWriter.INSTANCE, MCP43CSVReader.INSTANCE);
+	MCP43CLIENT(MCP43CSVWriter.CLIENT, MCP43CSVReader.CLIENT),
+	MCP43SERVER(MCP43CSVWriter.SERVER, MCP43CSVReader.SERVER);
 
 
 	private final MappingsWriter writer;
