@@ -97,7 +97,7 @@ public enum MCP43CSVWriter implements MappingsWriter {
                             "\"" + methodEntry.getSimpleName() + "\"," +
                             "\"" + translator.translate(methodEntry).getDesc() + "\"," +
                             "\"" + methodEntry.getDesc() + "\"," +
-                            "\"" + translator.translate(classEntry).getSimpleName() + "\"," +
+                            "\"" + translator.translate(classEntry).getFullName() + "\"," +
                             "\"" + classEntry.getFullName() + "\"," +
                             "\"" + packageName + "\"," +
                             "\"0\""
@@ -135,7 +135,7 @@ public enum MCP43CSVWriter implements MappingsWriter {
                         "\"" + fieldEntry.getSimpleName() + "\"," +
                         "\"" + translator.translate(fieldEntry).getDesc() + "\"," +
                         "\"" + fieldEntry.getDesc() + "\"," +
-                        "\"" + translator.translate(classEntry).getSimpleName() + "\"," +
+                        "\"" + translator.translate(classEntry).getFullName() + "\"," +
                         "\"" + classEntry.getFullName() + "\"," +
                         "\"" + packageName + "\"," +
                         "\"0\""
