@@ -33,7 +33,9 @@ public class ConvertMappingsCommand extends Command {
         EntryTree<EntryMapping> mappings = MappingCommandsUtil.read(args[0], Paths.get(args[1]), saveParameters);
 
         Path output = Paths.get(args[3]);
-        Utils.delete(output);
+        if (!output.toFile().isDirectory()) {
+            Utils.delete(output);
+        }
         MappingCommandsUtil.write(mappings, args[2], output, saveParameters);
     }
 }
