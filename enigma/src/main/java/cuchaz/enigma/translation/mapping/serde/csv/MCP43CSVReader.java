@@ -25,6 +25,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Enumeration;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -33,9 +35,12 @@ public enum MCP43CSVReader implements MappingsReader {
     SERVER(1);
 
     public int side;
+    
+    private Hashtable classes;
 
     MCP43CSVReader(int side) {
         this.side = side;
+        this.classes = new Hashtable<String, String>();
     }
 
     @Override
@@ -49,6 +54,7 @@ public enum MCP43CSVReader implements MappingsReader {
 
         progress.init(files.size(), I18n.translate("progress.mappings.csv_directory.loading"));
         int step = 0;
+        this.classes.clear();
 
         for (Path file : files) {
             progress.step(step++, root.relativize(file).toString());
@@ -64,8 +70,22 @@ public enum MCP43CSVReader implements MappingsReader {
                 readFields(file, mappings);
             }
         }
-
+        System.out.println(classes.toString());
+        this.classes.clear();
         return mappings;
+    }
+    
+    private String fixFullName(String token, boolean isSignature)
+    {
+        Enumeration<String> e = classes.keys();
+        String s = token;
+        while (e.hasMoreElements()) {
+        	String key = e.nextElement();
+        	String replace = isSignature ? new StringBuilder().append("L").append(key).append(";").toString() : new StringBuilder().append("\"").append(key).append("\"").toString();
+        	String replaceWith = isSignature ? new StringBuilder().append("L").append((String)classes.get(key)).append(";").toString() : new StringBuilder().append("\"").append((String)classes.get(key)).append("\"").toString();
+        	s = s.replaceAll(replace, replaceWith);
+        }
+        return s;
     }
 
     private void readClasses(Path path, EntryTree<EntryMapping> mappings) throws IOException, MappingParseException {
@@ -109,7 +129,8 @@ public enum MCP43CSVReader implements MappingsReader {
                 String[] tokens = line.trim().split(",");
 
                 @Nullable MappingPair<?, RawEntryMapping> parent = mappingStack.peek();
-                ClassEntry parentEntry = new ClassEntry(tokens[6].replaceAll("\"", ""));
+                String s = fixFullName(tokens[6], false);
+                ClassEntry parentEntry = new ClassEntry(s.replaceAll("\"", ""));
 
                 MappingPair<?, RawEntryMapping> pair = parseMethodLine(parentEntry, tokens);
                 if (pair != null) {
@@ -136,7 +157,8 @@ public enum MCP43CSVReader implements MappingsReader {
                 String[] tokens = line.trim().split(",");
 
                 @Nullable MappingPair<?, RawEntryMapping> parent = mappingStack.peek();
-                ClassEntry parentEntry = new ClassEntry(tokens[6].replaceAll("\"", ""));
+                String s = fixFullName(tokens[6], false);
+                ClassEntry parentEntry = new ClassEntry(s.replaceAll("\"", ""));
 
                 MappingPair<?, RawEntryMapping> pair = parseFieldLine(parentEntry, tokens);
                 if (pair != null) {
@@ -152,10 +174,13 @@ public enum MCP43CSVReader implements MappingsReader {
     // Utility methods
     private MappingPair<ClassEntry, RawEntryMapping> parseClassLine(@Nullable Entry<?> parent, String[] tokens) {
         // Header: "name","notch","supername","package","side"
-        String obfuscatedName = ClassEntry.getInnerName(tokens[1].replaceAll("\"", ""));
+    	String name = tokens[3].replaceAll("\"", "").equals("net/minecraft/src") ? tokens[1].replaceAll("\"", "") : new StringBuilder().append(tokens[3].replaceAll("\"", "")).append("/").append(tokens[1].replaceAll("\"", "")).toString();
+    	if (!tokens[3].replaceAll("\"", "").equals("net/minecraft/src")) this.classes.put(tokens[1].replaceAll("\"", ""), name);
+        String obfuscatedName = ClassEntry.getInnerName(name);
         ClassEntry obfuscatedEntry = parent != null ? new ClassEntry((ClassEntry) parent, obfuscatedName) : new ClassEntry(obfuscatedName);
 
-        String mapping = ClassEntry.getInnerName(tokens[0].replaceAll("\"", ""));
+        	   name = tokens[3].replaceAll("\"", "").equals("net/minecraft/src") ? tokens[0].replaceAll("\"", "") : new StringBuilder().append(tokens[3].replaceAll("\"", "")).append("/").append(tokens[0].replaceAll("\"", "")).toString();
+        String mapping = ClassEntry.getInnerName(name);
         if (Integer.parseInt(tokens[4].replaceAll("\"", "")) == this.side) {
             return new MappingPair<>(obfuscatedEntry, new RawEntryMapping(mapping, AccessModifier.UNCHANGED));
         } else {
@@ -169,11 +194,10 @@ public enum MCP43CSVReader implements MappingsReader {
             throw new RuntimeException("Method must be a child of a class!");
         }
         ClassEntry ownerEntry = (ClassEntry) parent;
-
         String obfuscatedName = tokens[2].replaceAll("\"", "");
         String mapping = tokens[1].replaceAll("\"", "");
         AccessModifier modifier = AccessModifier.UNCHANGED;
-        MethodDescriptor descriptor = new MethodDescriptor(tokens[4].replaceAll("\"", ""));
+        MethodDescriptor descriptor = new MethodDescriptor(fixFullName(tokens[4], true).replaceAll("\"", ""));
 
         MethodEntry obfuscatedEntry = new MethodEntry(ownerEntry, obfuscatedName, descriptor);
         if (Integer.parseInt(tokens[8].replaceAll("\"", "")) == this.side) {
@@ -190,11 +214,11 @@ public enum MCP43CSVReader implements MappingsReader {
         }
 
         ClassEntry ownerEntry = (ClassEntry) parent;
-
+        System.out.println(ownerEntry.getFullName());
         String obfuscatedName = tokens[2].replaceAll("\"", "");
         String mapping = tokens[1].replaceAll("\"", "");
         AccessModifier modifier = AccessModifier.UNCHANGED;
-        TypeDescriptor descriptor = new TypeDescriptor(tokens[4].replaceAll("\"", ""));
+        TypeDescriptor descriptor = new TypeDescriptor(fixFullName(tokens[4], true).replaceAll("\"", ""));
 
         FieldEntry obfuscatedEntry = new FieldEntry(ownerEntry, obfuscatedName, descriptor);
 

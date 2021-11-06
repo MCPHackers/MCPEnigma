@@ -1,0 +1,8 @@
+tiny	2	0	obf	deobf
+c	c	c
+c	c$a	c$Kid
+c	f	cuchaz/enigma/Dad
+c	f$a	cuchaz/enigma/Dad$One
+c	f$a$a	cuchaz/enigma/Dad$One$Two
+c	f$a$a$a	cuchaz/enigma/Dad$One$Two$a
+	f	I	a	value
