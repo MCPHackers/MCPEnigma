@@ -11,13 +11,12 @@ import cuchaz.enigma.translation.mapping.serde.MappingSaveParameters;
 import cuchaz.enigma.translation.mapping.serde.MappingsWriter;
 import cuchaz.enigma.translation.mapping.tree.EntryTree;
 import cuchaz.enigma.translation.mapping.tree.EntryTreeNode;
-import cuchaz.enigma.translation.representation.entry.ClassEntry;
-import cuchaz.enigma.translation.representation.entry.FieldEntry;
-import cuchaz.enigma.translation.representation.entry.MethodEntry;
+import cuchaz.enigma.translation.representation.entry.*;
 
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -27,6 +26,7 @@ public enum MCP43CSVWriter implements MappingsWriter {
     SERVER(1);
 
     public int side;
+    public List<String> parameters = new ArrayList<>();
 
     MCP43CSVWriter(int side) {
         this.side = side;
@@ -81,7 +81,6 @@ public enum MCP43CSVWriter implements MappingsWriter {
             // Header: "searge","name","notch","sig","notchsig","classname","classnotch","package","side"
             writer.println("\"searge\",\"name\",\"notch\",\"sig\",\"notchsig\",\"classname\",\"classnotch\",\"package\",\"side\"");
 
-            int i = 0;
             for (EntryTreeNode<EntryMapping> node : methods) {
                 // Write to methods.csv
 
@@ -91,10 +90,19 @@ public enum MCP43CSVWriter implements MappingsWriter {
 
                 Translator translator = new MappingTranslator(mappings, VoidEntryResolver.INSTANCE);
 
-                if (!methodEntry.isConstructor()) {
-                    String targetName = mapping != null ? mapping.getTargetName() : methodEntry.getName();
-                    String packageName = translator.translate(classEntry).getPackageName() != null ? translator.translate(classEntry).getPackageName() : classEntry.getPackageName() != null ? classEntry.getPackageName() : "net/minecraft/src";
+                String targetName = mapping != null ? mapping.getTargetName() : methodEntry.getName();
+                String packageName = translator.translate(classEntry).getPackageName() != null ? translator.translate(classEntry).getPackageName() : classEntry.getPackageName() != null ? classEntry.getPackageName() : "net/minecraft/src";
 
+                // Write parameters
+                String paramString = translator.translate(classEntry).getFullName() + "." + targetName + translator.translate(methodEntry).getDesc() + "=|" +
+                node.getChildNodes()
+                        .stream()
+                        .filter(child -> child.getEntry() instanceof LocalVariableEntry)
+                        .map(child -> child.getValue().getTargetName())
+                        .collect(Collectors.joining(","));
+                parameters.add(paramString);
+
+                if (!methodEntry.isConstructor()) {
                     writer.println(
                             "\"" + targetName + "\"," +
                             "\"" + targetName + "\"," +
@@ -108,7 +116,12 @@ public enum MCP43CSVWriter implements MappingsWriter {
                     );
                 }
 
-                i++;
+            }
+
+            try (PrintWriter paramsWriter = new LfPrintWriter(Files.newBufferedWriter(basePath.resolve("params.exc")))) {
+                for (String parameter : parameters) {
+                    paramsWriter.write(parameter + "\n");
+                }
             }
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -120,7 +133,6 @@ public enum MCP43CSVWriter implements MappingsWriter {
             // Header: "searge","name","notch","sig","notchsig","classname","classnotch","package","side"
             writer.println("\"searge\",\"name\",\"notch\",\"sig\",\"notchsig\",\"classname\",\"classnotch\",\"package\",\"side\"");
 
-            int i = 0;
             for (EntryTreeNode<EntryMapping> node : fields) {
                 // Write to fields.csv
 
@@ -144,8 +156,6 @@ public enum MCP43CSVWriter implements MappingsWriter {
                         "\"" + packageName + "\"," +
                         "\"" + side + "\""
                 );
-
-                i++;
             }
         } catch (Exception ex) {
             ex.printStackTrace();
