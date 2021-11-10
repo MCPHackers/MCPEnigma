@@ -82,10 +82,6 @@ public enum SrgMappingsWriter implements MappingsWriter {
 		} else if (entry instanceof MethodEntry) {
 			methods.add(generateMethodLine((MethodEntry) entry, translator));
 		}
-
-		for (Entry<?> child : sorted(node.getChildren())) {
-			writeEntry(classes, fields, methods, mappings, child);
-		}
 	}
 
 	private String generateClassLine(ClassEntry sourceEntry, Translator translator) {
