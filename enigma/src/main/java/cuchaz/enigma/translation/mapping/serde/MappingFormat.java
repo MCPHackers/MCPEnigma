@@ -8,6 +8,7 @@ import cuchaz.enigma.translation.mapping.serde.csv.MCP43CSVWriter;
 import cuchaz.enigma.translation.mapping.serde.enigma.EnigmaMappingsReader;
 import cuchaz.enigma.translation.mapping.serde.enigma.EnigmaMappingsWriter;
 import cuchaz.enigma.translation.mapping.serde.proguard.ProguardMappingsReader;
+import cuchaz.enigma.translation.mapping.serde.srg.SrgMappingsReader;
 import cuchaz.enigma.translation.mapping.serde.srg.SrgMappingsWriter;
 import cuchaz.enigma.translation.mapping.serde.tiny.TinyMappingsReader;
 import cuchaz.enigma.translation.mapping.serde.tiny.TinyMappingsWriter;
@@ -25,7 +26,7 @@ public enum MappingFormat {
 	ENIGMA_ZIP(EnigmaMappingsWriter.ZIP, EnigmaMappingsReader.ZIP),
 	TINY_V2(new TinyV2Writer("intermediary", "named"), new TinyV2Reader()),
 	TINY_FILE(TinyMappingsWriter.INSTANCE, TinyMappingsReader.INSTANCE),
-	SRG_FILE(SrgMappingsWriter.INSTANCE, null),
+	SRG_FILE(SrgMappingsWriter.INSTANCE, new SrgMappingsReader()),
 	PROGUARD(null, ProguardMappingsReader.INSTANCE),
 	MCP43CLIENT(MCP43CSVWriter.CLIENT, MCP43CSVReader.CLIENT),
 	MCP43SERVER(MCP43CSVWriter.SERVER, MCP43CSVReader.SERVER);

@@ -12,6 +12,7 @@
 package cuchaz.enigma;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.ServiceLoader;
@@ -33,6 +34,8 @@ import cuchaz.enigma.classprovider.ClassProvider;
 import cuchaz.enigma.classprovider.CombiningClassProvider;
 import cuchaz.enigma.classprovider.JarClassProvider;
 import cuchaz.enigma.utils.Utils;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldNode;
 
 public class Enigma {
     public static final String NAME = "Enigma";
@@ -60,6 +63,15 @@ public class Enigma {
 		JarClassProvider jarClassProvider = new JarClassProvider(path);
 		ClassProvider classProvider = new CachingClassProvider(new CombiningClassProvider(jarClassProvider, libraryClassProvider));
 		Set<String> scope = jarClassProvider.getClassNames();
+
+		EnigmaProfile.fieldSignatures.clear();
+		jarClassProvider.getClassNames().forEach(clazzName -> {
+			ClassNode clazz = jarClassProvider.get(clazzName);
+
+			for (FieldNode field : clazz.fields) {
+				EnigmaProfile.fieldSignatures.put(clazz.name + "/" + field.name, field.desc);
+			}
+		});
 
 		JarIndex index = JarIndex.empty();
 		index.indexJar(scope, classProvider, progress);

@@ -23,10 +23,7 @@ import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 public final class EnigmaProfile {
 	public static final EnigmaProfile EMPTY = new EnigmaProfile(new ServiceContainer(ImmutableMap.of()));
@@ -43,6 +40,8 @@ public final class EnigmaProfile {
 
 	@SerializedName("mapping_save_parameters")
 	private final MappingSaveParameters mappingSaveParameters = null;
+
+	public static Map<String, String> fieldSignatures = new HashMap<>();
 
 	private EnigmaProfile(ServiceContainer serviceProfiles) {
 		this.serviceProfiles = serviceProfiles;

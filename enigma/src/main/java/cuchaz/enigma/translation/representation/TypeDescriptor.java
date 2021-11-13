@@ -30,7 +30,8 @@ public class TypeDescriptor implements Translatable {
 	protected final String desc;
 
 	public TypeDescriptor(String desc) {
-		Preconditions.checkNotNull(desc, "Desc cannot be null");
+		//Preconditions.checkNotNull(desc, "Desc cannot be null");
+		System.out.println(desc);
 
 		// don't deal with generics
 		// this is just for raw jvm types
