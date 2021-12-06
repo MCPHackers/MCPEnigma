@@ -6,110 +6,155 @@ import cuchaz.enigma.translation.MappingTranslator;
 import cuchaz.enigma.translation.Translator;
 import cuchaz.enigma.translation.mapping.EntryMapping;
 import cuchaz.enigma.translation.mapping.MappingDelta;
-import cuchaz.enigma.translation.mapping.serde.MappingSaveParameters;
 import cuchaz.enigma.translation.mapping.VoidEntryResolver;
 import cuchaz.enigma.translation.mapping.serde.LfPrintWriter;
+import cuchaz.enigma.translation.mapping.serde.MappingSaveParameters;
 import cuchaz.enigma.translation.mapping.serde.MappingsWriter;
 import cuchaz.enigma.translation.mapping.tree.EntryTree;
 import cuchaz.enigma.translation.mapping.tree.EntryTreeNode;
-import cuchaz.enigma.translation.representation.entry.ClassEntry;
-import cuchaz.enigma.translation.representation.entry.Entry;
-import cuchaz.enigma.translation.representation.entry.FieldEntry;
-import cuchaz.enigma.translation.representation.entry.MethodEntry;
+import cuchaz.enigma.translation.representation.entry.*;
 import cuchaz.enigma.utils.I18n;
 
+import java.io.BufferedWriter;
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public enum SrgMappingsWriter implements MappingsWriter {
-	INSTANCE;
+    INSTANCE;
 
-	@Override
-	public void write(EntryTree<EntryMapping> mappings, MappingDelta<EntryMapping> delta, Path path, ProgressListener progress, MappingSaveParameters saveParameters) {
-		try {
-			Files.deleteIfExists(path);
-			Files.createFile(path);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+    public static BufferedWriter bufferedWriter = null;
 
-		List<String> classLines = new ArrayList<>();
-		List<String> fieldLines = new ArrayList<>();
-		List<String> methodLines = new ArrayList<>();
+    @Override
+    public void write(EntryTree<EntryMapping> mappings, MappingDelta<EntryMapping> delta, Path path, ProgressListener progress, MappingSaveParameters saveParameters) {
+        try {
+            Files.deleteIfExists(path);
+            Files.createFile(path);
+            bufferedWriter = Files.newBufferedWriter(new File(path.getParent().toFile(), "params.exc").toPath());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
-		Collection<Entry<?>> rootEntries = Lists.newArrayList(mappings).stream()
-				.map(EntryTreeNode::getEntry)
-				.collect(Collectors.toList());
-		progress.init(rootEntries.size(), I18n.translate("progress.mappings.srg_file.generating"));
+        List<String> classLines = new ArrayList<>();
+        List<String> fieldLines = new ArrayList<>();
+        List<String> methodLines = new ArrayList<>();
 
-		int steps = 0;
-		for (Entry<?> entry : sorted(rootEntries)) {
-			progress.step(steps++, entry.getName());
-			writeEntry(classLines, fieldLines, methodLines, mappings, entry);
-		}
+        Collection<Entry<?>> rootEntries = Lists.newArrayList(mappings).stream()
+                .map(EntryTreeNode::getEntry)
+                .collect(Collectors.toList());
+        progress.init(rootEntries.size(), I18n.translate("progress.mappings.srg_file.generating"));
 
-		progress.init(3, I18n.translate("progress.mappings.srg_file.writing"));
-		try (PrintWriter writer = new LfPrintWriter(Files.newBufferedWriter(path))) {
-			progress.step(0, I18n.translate("type.classes"));
-			classLines.forEach(writer::println);
-			progress.step(1, I18n.translate("type.fields"));
-			fieldLines.forEach(writer::println);
-			progress.step(2, I18n.translate("type.methods"));
-			methodLines.forEach(writer::println);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
+        int steps = 0;
+        for (Entry<?> entry : sorted(rootEntries)) {
+            progress.step(steps++, entry.getName());
+            writeEntry(path, classLines, fieldLines, methodLines, mappings, entry);
+        }
 
-	private void writeEntry(List<String> classes, List<String> fields, List<String> methods, EntryTree<EntryMapping> mappings, Entry<?> entry) {
-		EntryTreeNode<EntryMapping> node = mappings.findNode(entry);
-		if (node == null) {
-			return;
-		}
+        progress.init(3, I18n.translate("progress.mappings.srg_file.writing"));
+        try (PrintWriter writer = new LfPrintWriter(Files.newBufferedWriter(path))) {
+            progress.step(0, I18n.translate("type.classes"));
+            classLines.forEach(writer::println);
+            progress.step(1, I18n.translate("type.fields"));
+            fieldLines.forEach(writer::println);
+            progress.step(2, I18n.translate("type.methods"));
+            methodLines.forEach(writer::println);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                bufferedWriter.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
-		Translator translator = new MappingTranslator(mappings, VoidEntryResolver.INSTANCE);
-		if (entry instanceof ClassEntry) {
-			classes.add(generateClassLine((ClassEntry) entry, translator));
-		} else if (entry instanceof FieldEntry) {
-			fields.add(generateFieldLine((FieldEntry) entry, translator));
-		} else if (entry instanceof MethodEntry) {
-			methods.add(generateMethodLine((MethodEntry) entry, translator));
-		}
-	}
+    private void writeEntry(Path path, List<String> classes, List<String> fields, List<String> methods, EntryTree<EntryMapping> mappings, Entry<?> entry) {
+        EntryTreeNode<EntryMapping> node = mappings.findNode(entry);
+        if (node == null) {
+            return;
+        }
 
-	private String generateClassLine(ClassEntry sourceEntry, Translator translator) {
-		ClassEntry targetEntry = translator.translate(sourceEntry);
-		return "CL: " + sourceEntry.getFullName() + " " + targetEntry.getFullName();
-	}
+        Translator translator = new MappingTranslator(mappings, VoidEntryResolver.INSTANCE);
+        if (entry instanceof ClassEntry) {
+            classes.add(generateClassLine((ClassEntry) entry, translator));
+        } else if (entry instanceof FieldEntry) {
+            fields.add(generateFieldLine((FieldEntry) entry, translator));
+        } else if (entry instanceof MethodEntry) {
+            MethodEntry methodEntry = (MethodEntry) entry;
+            // TODO: Make this actually verify that all parameters are mapped
+            long result = node.getChildNodes().stream().map((child -> {
+                Entry<?> translatedChildEntry = translator.translate(child.getEntry());
+                return translatedChildEntry instanceof LocalVariableEntry;
+            })).count();
+            if (node.getChildNodes().size() == result && result != 0) {
+                try {
+                    String methodName;
+                    if (translator.translate(entry) != null) {
+                        methodName = translator.translate(entry).getFullName();
+                    } else {
+                        methodName = entry.getFullName();
+                    }
 
-	private String generateMethodLine(MethodEntry sourceEntry, Translator translator) {
-		MethodEntry targetEntry = translator.translate(sourceEntry);
-		return "MD: " + describeMethod(sourceEntry) + " " + describeMethod(targetEntry);
-	}
+                    bufferedWriter.write(methodName);
+                    bufferedWriter.write(translator.translate(methodEntry).getDesc().toString());
+                    bufferedWriter.write("=|");
 
-	private String describeMethod(MethodEntry entry) {
-		return entry.getParent().getFullName() + "/" + entry.getName() + " " + entry.getDesc();
-	}
+                    String parameters = node.getChildNodes().stream().map((child) -> {
+                        Entry<?> translatedChildEntry = translator.translate(child.getEntry());
+                        if (translatedChildEntry instanceof LocalVariableEntry) {
+                            return ((LocalVariableEntry) translatedChildEntry);
+                        }
+                        return null;
+                    })
+                    .filter(Objects::nonNull)
+                    .sorted(Comparator.comparingInt(LocalVariableEntry::getIndex))
+                    .map(ParentedEntry::getSimpleName)
+                    .collect(Collectors.joining(","));
 
-	private String generateFieldLine(FieldEntry sourceEntry, Translator translator) {
-		FieldEntry targetEntry = translator.translate(sourceEntry);
-		return "FD: " + describeField(sourceEntry) + " " + describeField(targetEntry);
-	}
+                    bufferedWriter.write(parameters);
+                    bufferedWriter.write("\n");
+                    bufferedWriter.flush();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
 
-	private String describeField(FieldEntry entry) {
-		return entry.getParent().getFullName() + "/" + entry.getName();
-	}
+                methods.add(generateMethodLine(methodEntry, translator));
+            }
+        }
+    }
 
-	private Collection<Entry<?>> sorted(Iterable<Entry<?>> iterable) {
-		ArrayList<Entry<?>> sorted = Lists.newArrayList(iterable);
-		sorted.sort(Comparator.comparing(Entry::getName));
-		return sorted;
-	}
+    private String generateClassLine(ClassEntry sourceEntry, Translator translator) {
+        ClassEntry targetEntry = translator.translate(sourceEntry);
+        return "CL: " + sourceEntry.getFullName() + " " + targetEntry.getFullName();
+    }
+
+    private String generateMethodLine(MethodEntry sourceEntry, Translator translator) {
+        MethodEntry targetEntry = translator.translate(sourceEntry);
+        return "MD: " + describeMethod(sourceEntry) + " " + describeMethod(targetEntry);
+    }
+
+    private String describeMethod(MethodEntry entry) {
+        return entry.getParent().getFullName() + "/" + entry.getName() + " " + entry.getDesc();
+    }
+
+    private String generateFieldLine(FieldEntry sourceEntry, Translator translator) {
+        FieldEntry targetEntry = translator.translate(sourceEntry);
+        return "FD: " + describeField(sourceEntry) + " " + describeField(targetEntry);
+    }
+
+    private String describeField(FieldEntry entry) {
+        return entry.getParent().getFullName() + "/" + entry.getName();
+    }
+
+    private Collection<Entry<?>> sorted(Iterable<Entry<?>> iterable) {
+        ArrayList<Entry<?>> sorted = Lists.newArrayList(iterable);
+        sorted.sort(Comparator.comparing(Entry::getName));
+        return sorted;
+    }
 }
