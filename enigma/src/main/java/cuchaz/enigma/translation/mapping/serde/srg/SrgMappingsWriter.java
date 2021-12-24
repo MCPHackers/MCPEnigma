@@ -22,20 +22,21 @@ import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public enum SrgMappingsWriter implements MappingsWriter {
     INSTANCE;
 
-    public static BufferedWriter bufferedWriter = null;
+    public static BufferedWriter parameterBufferWriter = null;
+    public static BufferedWriter javadocBufferWriter = null;
 
     @Override
     public void write(EntryTree<EntryMapping> mappings, MappingDelta<EntryMapping> delta, Path path, ProgressListener progress, MappingSaveParameters saveParameters) {
         try {
             Files.deleteIfExists(path);
             Files.createFile(path);
-            bufferedWriter = Files.newBufferedWriter(new File(path.getParent().toFile(), "params.exc").toPath());
+            parameterBufferWriter = Files.newBufferedWriter(new File(path.getParent().toFile(), "params.exc").toPath());
+            javadocBufferWriter = Files.newBufferedWriter(new File(path.getParent().toFile(), "javadocs.javadoc").toPath());
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -67,7 +68,7 @@ public enum SrgMappingsWriter implements MappingsWriter {
             e.printStackTrace();
         } finally {
             try {
-                bufferedWriter.close();
+                parameterBufferWriter.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -80,13 +81,41 @@ public enum SrgMappingsWriter implements MappingsWriter {
             return;
         }
 
+        try {
+            javadocBufferWriter.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         Translator translator = new MappingTranslator(mappings, VoidEntryResolver.INSTANCE);
         if (entry instanceof ClassEntry) {
+            try {
+                String name = translator.translate(entry).getFullName();
+                if (translator.translate(entry) != null && translator.translate(entry).getJavadocs() != null) {
+                    javadocBufferWriter.write("c " + name.replace(".", "/") + "=" + "\"" + translator.translate(entry).getJavadocs() + "\"" + "\n");
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
             classes.add(generateClassLine((ClassEntry) entry, translator));
         } else if (entry instanceof FieldEntry) {
+            try {
+                if (translator.translate(entry) != null && translator.translate(entry).getJavadocs() != null) {
+                    javadocBufferWriter.write("f " + translator.translate(entry).getFullName().replace(".", "/") + "=" + "\"" + translator.translate(entry).getJavadocs() + "\"" + "\n");
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
             fields.add(generateFieldLine((FieldEntry) entry, translator));
         } else if (entry instanceof MethodEntry) {
             MethodEntry methodEntry = (MethodEntry) entry;
+            try {
+                if (translator.translate(entry) != null && translator.translate(entry).getJavadocs() != null) {
+                    javadocBufferWriter.write("m " + translator.translate(entry).getFullName().replace(".", "/") + "=" + "\"" + translator.translate(entry).getJavadocs() + "\"" + "\n");
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
             // TODO: Make this actually verify that all parameters are mapped
             long result = node.getChildNodes().stream().map((child -> {
                 Entry<?> translatedChildEntry = translator.translate(child.getEntry());
@@ -101,9 +130,9 @@ public enum SrgMappingsWriter implements MappingsWriter {
                         methodName = entry.getFullName();
                     }
 
-                    bufferedWriter.write(methodName);
-                    bufferedWriter.write(translator.translate(methodEntry).getDesc().toString());
-                    bufferedWriter.write("=|");
+                    parameterBufferWriter.write(methodName);
+                    parameterBufferWriter.write(translator.translate(methodEntry).getDesc().toString());
+                    parameterBufferWriter.write("=|");
 
                     String parameters = node.getChildNodes().stream().map((child) -> {
                         Entry<?> translatedChildEntry = translator.translate(child.getEntry());
@@ -117,9 +146,9 @@ public enum SrgMappingsWriter implements MappingsWriter {
                     .map(ParentedEntry::getSimpleName)
                     .collect(Collectors.joining(","));
 
-                    bufferedWriter.write(parameters);
-                    bufferedWriter.write("\n");
-                    bufferedWriter.flush();
+                    parameterBufferWriter.write(parameters);
+                    parameterBufferWriter.write("\n");
+                    parameterBufferWriter.flush();
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }
