@@ -101,7 +101,7 @@ public enum SrgMappingsWriter implements MappingsWriter {
         } else if (entry instanceof FieldEntry) {
             try {
                 if (translator.translate(entry) != null && translator.translate(entry).getJavadocs() != null) {
-                    javadocBufferWriter.write("f " + translator.translate(entry).getFullName().replace(".", "/") + "=" + "\"" + translator.translate(entry).getJavadocs() + "\"" + "\n");
+                    javadocBufferWriter.write("f " + translator.translate(entry).getFullName().replace(".", "/") + "(" + translator.translate((FieldEntry) entry).getDesc() + ")=" + "\"" + translator.translate(entry).getJavadocs() + "\"" + "\n");
                 }
             } catch (IOException ex) {
                 ex.printStackTrace();
@@ -111,7 +111,7 @@ public enum SrgMappingsWriter implements MappingsWriter {
             MethodEntry methodEntry = (MethodEntry) entry;
             try {
                 if (translator.translate(entry) != null && translator.translate(entry).getJavadocs() != null) {
-                    javadocBufferWriter.write("m " + translator.translate(entry).getFullName().replace(".", "/") + "=" + "\"" + translator.translate(entry).getJavadocs() + "\"" + "\n");
+                    javadocBufferWriter.write("m " + translator.translate(entry).getFullName().replace(".", "/") + translator.translate((MethodEntry) entry).getDesc() + "=" + "\"" + translator.translate(entry).getJavadocs() + "\"" + "\n");
                 }
             } catch (IOException ex) {
                 ex.printStackTrace();
