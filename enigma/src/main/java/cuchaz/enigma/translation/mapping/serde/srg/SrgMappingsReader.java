@@ -45,6 +45,7 @@ public class SrgMappingsReader implements MappingsReader {
 
             try {
                 MappingPair<?, EntryMapping> mapping = parseLine(line);
+                if(mapping == null) continue;
                 mappings.insert(mapping.getEntry(), mapping.getMapping());
             } catch (Throwable t) {
                 t.printStackTrace();
@@ -82,7 +83,7 @@ public class SrgMappingsReader implements MappingsReader {
         ClassEntry ownerClass = new ClassEntry(tokens[1].substring(0, tokens[1].lastIndexOf('/')));
         String obfuscatedFieldName =  tokens[1].substring(tokens[1].lastIndexOf('/') + 1);
         String fieldSignature = EnigmaProfile.fieldSignatures.get(ownerClass.getName() + "/" + obfuscatedFieldName);
-        if (fieldSignature == null) System.out.println(ownerClass.getName() + "/" + obfuscatedFieldName);
+        if (fieldSignature == null) return null;//System.out.println(ownerClass.getName() + "/" + obfuscatedFieldName);
         TypeDescriptor descriptor = new TypeDescriptor(fieldSignature);
 
         FieldEntry obfuscatedEntry = new FieldEntry(ownerClass, obfuscatedFieldName, descriptor);
